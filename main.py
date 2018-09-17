@@ -3,7 +3,7 @@
 #
 #
 #
-
+import os
 import numpy as np 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
@@ -12,7 +12,7 @@ from skimage import feature
 from skimage import measure
 
 def getIMG(name="circle"):
-	filename = name + ".png"
+	filename = os.path.join(os.getcwd(), "Pics/"+name + ".png")
 	img = mpimg.imread(filename)
 	return img
 
@@ -35,7 +35,8 @@ def seeIMGbyEdges(img):
 class Image():
 	def __init__(self,filename):
 		self.name = filename
-		self.image = mpimg.imread(filename + ".png")[:,:,:3]
+		fullname = os.path.join(os.getcwd(),"Pics/" + filename + ".png")
+		self.image = mpimg.imread(fullname)[:,:,:3]
 		self.dimensions = len(self.image),len(self.image[0])
 		self.R = smoothImage(self.image[:,:,0]).flatten() #from 0-1
 		self.G = smoothImage(self.image[:,:,1]).flatten() #from 0-1
@@ -643,7 +644,7 @@ def getEdgeKernel(size, orientation):
 					k[i][j] -= total_sum/num_pos
 	return k
 
-def singleEdgeFinder(loc,edges,gradients,stepwise=False,verbose=True):
+def singleEdgeFinder(loc,edges,gradients,stepwise=True,verbose=True):
 	# edges is an image array, lowerbnd of 0, 
 	# higher number is more likely to be an edge
 	w,h = edges.shape
@@ -674,7 +675,7 @@ def singleEdgeFinder(loc,edges,gradients,stepwise=False,verbose=True):
 			path.set_data(py,px)
 			plt.title('after %i steps' % (i+1))
 			plt.draw()
-			plt.pause(0.1)
+			plt.pause(0.15)
 		if verbose:
 			print(curve)
 	px,py = curve.path()
