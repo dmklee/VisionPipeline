@@ -278,40 +278,13 @@ class Curve2():
 		self.c_tot = 0.0
 		self.l_tot = 0.0
 		self.l_old = 0.0
-		self.rconf = edges[seed]
-		self.lconf = edges[seed]
 		self.radius = np.inf
 		self.edges = edges 
 		self.grads = gradients
 		self.AOIs = Curve2.getAOIs()
+		self.seed = seed
 
-	def grow(self,pt,side_desc):
-		grad = self.grads[pt]
-		
-		if side_desc =='right':
-			side = 1
-			status = self.rstatus
-			tail = self.rtail
-		elif side_desc == 'left':
-			side = -1
-			tail = self.ltail
-			status = self.lstatus
-		else:
-			raise TypeError
-
-		vec_lr = self.rtail-self.ltail
-		q = np.linalg.norm(vec_lr)
-		if status == 'growing':
-			uvec_lr = vec_lr/q
-			angle_prog = side*np.arcsin(q*self.c_tot/2.)
-			c,s = np.cos(angle_prog),np.sin(angle_prog)
-			R_matrix = np.array(((c,-s), (s, c))).T
-			uvec_rl = side*uvec_lr 
-			v_est = np.dot(R_matrix,uvec_rl)
-		elif status == 'seeded':
-			v_est = np.array([np.sin(grad+side*np.pi/2),np.cos(grad+side*np.pi/2)])
-
-		pt = np.array(pt)
+	def getC_new(self,pt,grad,side,tail,v_est):
 		new_dir = grad + side*np.pi/2
 		vec_old_to_new = pt - tail
 		l_new = np.linalg.norm(vec_old_to_new)
@@ -327,27 +300,62 @@ class Curve2():
 				c_new *= -1.0
 		else:
 			c_new = 0.0
-		if th > np.pi/2:
-			th = np.pi-th
-		if abs(th) > np.pi/6:
-			new_status = 'dormant'
-			print('went dormant')
+
+		return c_new,l_new
+		
+
+	def getV_est(self,status,grad,side):
+		vec_lr = self.rtail-self.ltail
+		q = np.linalg.norm(vec_lr)
+		if status == 'growing':
+			uvec_lr = vec_lr/q
+			angle_prog = side*np.arcsin(q*self.c_tot/2.)
+			c,s = np.cos(angle_prog),np.sin(angle_prog)
+			R_matrix = np.array(((c,-s), (s, c))).T
+			uvec_rl = side*uvec_lr 
+			v_est = np.dot(R_matrix,uvec_rl)
+		elif status == 'seeded':
+			v_est = np.array([np.sin(grad+side*np.pi/2),np.cos(grad+side*np.pi/2)])
+		return v_est
+
+	def getSideSpecificInfo(self,side_desc):
+		if side_desc =='right':
+			side = 1
+			status = self.rstatus
+			tail = self.rtail
+		elif side_desc == 'left':
+			side = -1
+			tail = self.ltail
+			status = self.lstatus
 		else:
-			new_status = 'growing'
-			self.c_tot = (self.l_tot*self.c_tot + side*l_new*c_new)/(self.l_tot+l_new)
-			if 1/self.c_tot < q/2:
-				self.c_tot = 2./q
-			self.radius = 1/self.c_tot if abs(self.c_tot) > 0.0001 else np.inf
-			self.l_tot += l_new
-			self.l_old = l_new
+			raise TypeError
+		return side,status,tail
 
-
+	def changeSideSpecificInfo(self,side_desc,new_tail,new_status):
 		if side_desc == 'right':
-			self.rtail = pt[:]
+			self.rtail = new_tail[:]
 			self.rstatus = new_status
 		else:
-			self.ltail = pt[:]
+			self.ltail = new_tail[:]
 			self.lstatus = new_status
+
+	def grow(self,pt,side_desc):
+		grad = self.grads[tuple(pt)]
+		pt = np.array(pt)
+
+		side,status,tail = self.getSideSpecificInfo(side_desc)
+		v_est = self.getV_est(status,grad,side)
+		c_new,l_new = self.getC_new(pt,grad,side,tail,v_est)
+		self.c_tot = (self.l_tot*self.c_tot + side*l_new*c_new)/(self.l_tot+l_new)
+		q = np.linalg.norm(self.rtail-self.ltail)
+		if q > 0.0 and abs(self.c_tot) > 2/q:
+			self.c_tot = 2./q
+		self.radius = 1/self.c_tot if abs(self.c_tot) > 0.0001 else np.inf
+		self.l_tot += l_new
+		self.l_old = l_new
+
+		new_status = 'growing'
+		self.changeSideSpecificInfo(side_desc,pt,new_status)
 		
 	def rgrow(self,rseed):
 		return self.grow(rseed,'right')
@@ -375,14 +383,25 @@ class Curve2():
 		c,s = np.cos(th_rot),np.sin(th_rot)
 		R_matrix = np.array(((c,-s), (s, c))).T
 		rotated_vec = np.dot(R_matrix,vec_norm)
-		CoR = mid_pt + np.sign(self.c_tot)*np.sqrt(r**2-(q/2.)**2)*rotated_vec
+		# CoR = mid_pt + np.sign(self.c_tot)*np.sqrt(r**2-(q/2.)**2)*rotated_vec
+		CoR = self.seed + np.sign(self.c_tot)*r*rotated_vec + np.array([0.5,0.5])
+
 		n_points = 20
+		c,s = np.cos(-dth),np.sin(-dth)
+		dR_matrix = np.array(((c,-s), (s, c))).T
+		x = [self.seed[0]+0.5]
+		y = [self.seed[1]+0.5]
+		pointing_vec = -np.sign(self.c_tot)*r*rotated_vec	
+		for i in xrange(n_points//2):
+			pointing_vec = np.dot(dR_matrix,pointing_vec)
+			x.append(CoR[0]+pointing_vec[0])
+			y.append(CoR[1]+pointing_vec[1])
+		x.reverse()
+		y.reverse()
 		c,s = np.cos(dth),np.sin(dth)
 		dR_matrix = np.array(((c,-s), (s, c))).T
-		x = [self.ltail[0]]
-		y = [self.ltail[1]]
-		pointing_vec = self.ltail-CoR	
-		for i in xrange(n_points):
+		pointing_vec = -np.sign(self.c_tot)*r*rotated_vec
+		for i in xrange(n_points//2):
 			pointing_vec = np.dot(dR_matrix,pointing_vec)
 			x.append(CoR[0]+pointing_vec[0])
 			y.append(CoR[1]+pointing_vec[1])
@@ -665,7 +684,7 @@ def singleEdgeFinder(loc,edges,gradients,stepwise=True,verbose=True):
 	plt.autoscale(False)
 	path, = plt.plot([],[],'b-')
 	plt.tight_layout()
-	n_steps = 16
+	n_steps = 25
 	for i in xrange(n_steps):
 		seeds = curve.expand()
 		for s in seeds:
@@ -728,7 +747,7 @@ if __name__ == "__main__":
 	# plt.tight_layout()
 
 	# multiEdgeFinder(edges,gradients,n_steps=5)
-	loc = 48,67
+	loc = 51,87
 	singleEdgeFinder(loc,edges,gradients)
 
 
