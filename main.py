@@ -32,6 +32,20 @@ def seeIMGbyEdges(img):
 	plt.tight_layout()
 	plt.show()
 
+def intersection(p1,v1,p2,v2):
+	# given two points with vectors, find intersection
+	# return None if lines are parallel
+	a = v1[1]/v1[0]
+	b = v2[1]/v2[0]
+	c = p1[1]-a*p1[0]
+	d = p2[1]-b*p2[0]
+	if abs(a-b) < 0.0001:
+		return None
+	xing = np.empty(2)
+	xing[0] = (d-c)/(a-b)
+	xing[1] = (a*d-b*c)/(a-b)
+	return xing 
+
 class Image():
 	def __init__(self,filename):
 		self.name = filename
@@ -275,34 +289,59 @@ class Curve2():
 		self.rstatus = 'seeded'
 		self.lstatus = 'seeded'
 		self.status = 'growing'
-		self.c_tot = 0.0
-		self.l_tot = 0.0
-		self.l_old = 0.0
+		self.c_tot = 0.0 # positive if it curves right from ltail to rtail
+		self.age = 0
+		self.conf = 0.5
 		self.radius = np.inf
 		self.edges = edges 
 		self.grads = gradients
 		self.AOIs = Curve2.getAOIs()
-		self.seed = seed
+		self.seed = np.array(seed)
+
+	def getNewGrowthProb(self,pt,grad,side,status,th_est):
+		max_diff = np.pi/6
+		diff = th_est%(2*np.pi) - (grad+side*np.pi/2)%(2*np.pi)
+		if diff > np.pi:
+			diff = 2*np.pi-diff
+		prob = (max_diff-min(abs(diff),max_diff))/max_diff
+		return prob
+
+	def updateConf(self,c_new):
+		# confidence increases based on how much they agree
+		self.conf *= 1.0
+		self.conf = np.clip(self.conf,0,1)
 
 	def getC_new(self,pt,grad,side,tail,v_est):
+		pt = np.array(pt)
 		new_dir = grad + side*np.pi/2
-		vec_old_to_new = pt - tail
-		l_new = np.linalg.norm(vec_old_to_new)
-		old_dir = np.arctan2(v_est[0],v_est[1])
-		v_new = self.A*(vec_old_to_new/l_new) + \
-				(1-self.A)*np.array([np.sin(new_dir),np.cos(new_dir)])
-		th = np.arccos(np.dot(-v_est,v_new))
-		denom = np.sqrt(self.l_old**2 + l_new**2 - 2*self.l_old*l_new*np.dot(-v_est,v_new))
-		if abs(denom) > 0.01:
-			c_new = 2*np.sin(th)/(denom)
-			th_dif = new_dir%(2*np.pi) - old_dir%(2*np.pi)
-			if th_dif < 0:
-				c_new *= -1.0
+		s_grad = self.grads[tuple(self.seed)]
+		sgn = np.sign(self.c_tot)
+		if sgn == 0:
+			sgn = 1
+		uvec_StoC = -sgn*np.array([np.cos(s_grad),np.sin(s_grad)])
+		vec_StoPt = pt - self.seed
+		d = np.linalg.norm(vec_StoPt)
+		uvec_StoPt = vec_StoPt/d
+		th = np.arccos(np.dot(uvec_StoPt,uvec_StoC))
+		if abs(th-np.pi/2) < 0.001:
+			c_geo = 0.0
 		else:
-			c_new = 0.0
+			r_geo = d*np.sin(th)/np.sin(np.pi-2*th)
+			c_geo = 1/r_geo
 
-		return c_new,l_new
-		
+		xing = intersection(self.seed,uvec_StoC,pt,np.array([np.cos(grad),np.sin(grad)]))
+		if xing is None:
+			c_curv = 0.0
+		else:
+			d = np.linalg.norm(xing-self.seed)
+			c_curv = 1/d
+		# find the sign of c_curv
+		projection = np.dot(vec_StoPt,uvec_StoC)
+		c_curv = side*np.sign(projection)*c_curv
+
+		print(c_curv)
+		z = 0#np.clip(self.age/8-0.5,0,1.0)
+		return c_curv
 
 	def getV_est(self,status,grad,side):
 		vec_lr = self.rtail-self.ltail
@@ -317,6 +356,20 @@ class Curve2():
 		elif status == 'seeded':
 			v_est = np.array([np.sin(grad+side*np.pi/2),np.cos(grad+side*np.pi/2)])
 		return v_est
+
+	def getTh_est(self,pt,status,side):
+		s_grad = self.grads[tuple(self.seed)]
+		if abs(self.c_tot) < 0.0001 or status == 'seeded':
+			th_est = s_grad+side*np.pi/2
+		else:
+			#vector from center of rotation to seed
+			vec_CtoS = np.sign(self.c_tot)*self.radius*np.array([np.cos(s_grad),np.sin(s_grad)])
+			th_CtoS = np.arctan2(vec_CtoS[0],vec_CtoS[1])
+			center = self.seed - vec_CtoS
+			vec_CtoPt = pt - center
+			th_CtoPt = np.arctan2(vec_CtoPt[0],vec_CtoPt[1])
+			th_est = s_grad+side*np.pi/2 + (th_CtoS - th_CtoPt)
+		return th_est
 
 	def getSideSpecificInfo(self,side_desc):
 		if side_desc =='right':
@@ -339,24 +392,50 @@ class Curve2():
 			self.ltail = new_tail[:]
 			self.lstatus = new_status
 
+	def showGrowthReport(self,grad,side_desc,th_est,prob,is_added):
+		side = 1 if side_desc == 'right' else -1
+		bar = "<" + "-"*15+".\n"
+		l1 = side_desc + " side growing \n"
+		l2 = "new direction is %f radians \n" % ((grad+side*np.pi/2)%(2*np.pi))
+		l3 = "est. direction was %f radians \n" % (th_est)
+		l4 = "probability that new point fits curve is %f \n" % prob
+		if is_added:
+			l5 = "new point was added. \nnew curvature is %f.\nnew confidence is %f.\n" %(self.c_tot,self.conf)
+		else:
+			l5 = "new point was not added. status changed to dormant.\n"
+		print(bar+l1+l2+l3+l4+l5+bar)
+
 	def grow(self,pt,side_desc):
 		grad = self.grads[tuple(pt)]
 		pt = np.array(pt)
 
 		side,status,tail = self.getSideSpecificInfo(side_desc)
 		v_est = self.getV_est(status,grad,side)
-		c_new,l_new = self.getC_new(pt,grad,side,tail,v_est)
-		self.c_tot = (self.l_tot*self.c_tot + side*l_new*c_new)/(self.l_tot+l_new)
-		q = np.linalg.norm(self.rtail-self.ltail)
-		if q > 0.0 and abs(self.c_tot) > 2/q:
-			self.c_tot = 2./q
-		self.radius = 1/self.c_tot if abs(self.c_tot) > 0.0001 else np.inf
-		self.l_tot += l_new
-		self.l_old = l_new
-
-		new_status = 'growing'
-		self.changeSideSpecificInfo(side_desc,pt,new_status)
+		th_est = self.getTh_est(pt,status,side)
+		prob = self.getNewGrowthProb(pt,grad,side,status,th_est)
+		if True:
+			is_added = True
+			c_new = self.getC_new(pt,grad,side,tail,v_est)
+			self.c_tot = self.c_tot + (c_new-self.c_tot)/(self.age+1)
+			self.radius = abs(1/self.c_tot) if abs(self.c_tot) > 0.0001 else np.inf
+			self.age += 1
+			self.updateConf(prob)
+			new_status = 'growing'
+			self.changeSideSpecificInfo(side_desc,pt,new_status)
+		else:
+			is_added = False
+			new_status = 'dormant'
+			self.changeSideStatus(side_desc,new_status)
+		# self.showGrowthReport(grad,side_desc,th_est,prob,is_added)
 		
+	def changeSideStatus(self,side_desc,new_status):
+		if side_desc == 'right':
+			self.rstatus = new_status
+		elif side_desc == 'left':
+			self.lstatus = new_status
+		else:
+			raise TypeError
+
 	def rgrow(self,rseed):
 		return self.grow(rseed,'right')
 
@@ -366,64 +445,51 @@ class Curve2():
 	def path(self):
 		# go from left to right
 		if abs(self.c_tot) < 0.005:
-			x = [self.ltail[0],self.rtail[0]]
-			y = [self.ltail[1],self.rtail[1]]
-			return np.array(x),np.array(y)
-
-		#find the center of rotation: http://mathforum.org/library/drmath/view/53027.html
-		mid_pt = (self.ltail+self.rtail)/2.
-		vec = self.rtail-self.ltail
-		q = np.linalg.norm(self.rtail-self.ltail)
-		r = self.radius
-		th = 2*np.arcsin(min(q*self.c_tot/2.,1.0)) 
-		n_segments = 20
-		dth = th/n_segments
-		vec_norm = (self.rtail-self.ltail)/q
-		th_rot = np.pi/2
-		c,s = np.cos(th_rot),np.sin(th_rot)
-		R_matrix = np.array(((c,-s), (s, c))).T
-		rotated_vec = np.dot(R_matrix,vec_norm)
-		# CoR = mid_pt + np.sign(self.c_tot)*np.sqrt(r**2-(q/2.)**2)*rotated_vec
-		CoR = self.seed + np.sign(self.c_tot)*r*rotated_vec + np.array([0.5,0.5])
+			q = np.linalg.norm(self.ltail-self.rtail)
+			s_dir = self.grads[tuple(self.seed)]+np.pi/2
+			x = self.seed[0]+0.5 + np.sin(s_dir)*np.array([-q/2,q/2])
+			y = self.seed[1]+0.5 + np.cos(s_dir)*np.array([-q/2,q/2])
+			return np.array(x),np.array(y),None,None
+		s_grad = self.grads[tuple(self.seed)]
+		vec_CtoS = np.sign(self.c_tot)*self.radius*np.array([np.sin(s_grad),np.cos(s_grad)])
+		center = self.seed - vec_CtoS
+		vec_CtoLtail = self.ltail - center
+		th_CtoLtail = np.arctan2(vec_CtoLtail[1],vec_CtoLtail[0])
+		vec_CtoRtail = self.rtail - center
+		th_CtoRtail = np.arctan2(vec_CtoRtail[1],vec_CtoRtail[0])
+		if th_CtoRtail > th_CtoLtail:
+			th_CtoLtail += 2*np.pi
+		th_progressed = th_CtoLtail-th_CtoRtail
+		holding_vec = self.radius * vec_CtoLtail/np.linalg.norm(vec_CtoLtail)
 
 		n_points = 20
-		c,s = np.cos(-dth),np.sin(-dth)
-		dR_matrix = np.array(((c,-s), (s, c))).T
-		x = [self.seed[0]+0.5]
-		y = [self.seed[1]+0.5]
-		pointing_vec = -np.sign(self.c_tot)*r*rotated_vec	
-		for i in xrange(n_points//2):
-			pointing_vec = np.dot(dR_matrix,pointing_vec)
-			x.append(CoR[0]+pointing_vec[0])
-			y.append(CoR[1]+pointing_vec[1])
-		x.reverse()
-		y.reverse()
+		dth = th_progressed/n_points
 		c,s = np.cos(dth),np.sin(dth)
 		dR_matrix = np.array(((c,-s), (s, c))).T
-		pointing_vec = -np.sign(self.c_tot)*r*rotated_vec
-		for i in xrange(n_points//2):
-			pointing_vec = np.dot(dR_matrix,pointing_vec)
-			x.append(CoR[0]+pointing_vec[0])
-			y.append(CoR[1]+pointing_vec[1])
-		return np.array(x),np.array(y)
+		x = [holding_vec[0]+center[0]+0.5]
+		y = [holding_vec[1]+center[1]+0.5]
+		for i in xrange(n_points):
+			holding_vec = np.dot(dR_matrix,holding_vec)
+			x.append(center[0]+0.5+holding_vec[0])
+			y.append(center[1]+0.5+holding_vec[1])
+		return np.array(x),np.array(y),center,vec_CtoRtail
 
 	def expand(self):
-		seeds = []
+		rseed = None
+		lseed = None
 		if self.rstatus != 'dormant':
 			r_dir = self.grads[tuple(self.rtail)] + np.pi/2
 			r_AOI_id = Curve2.selectAOI(r_dir)
 			r_AOI = self.AOIs[r_AOI_id]
 			rseed,_ = self.sampleAOI(self.rtail,r_AOI)
 			self.rgrow(rseed)
-			seeds.append(rseed)
 		if self.lstatus != 'dormant':
 			l_dir = self.grads[tuple(self.ltail)] - np.pi/2
 			l_AOI_id = Curve2.selectAOI(l_dir)
 			l_AOI = self.AOIs[l_AOI_id]
 			lseed,_ = self.sampleAOI(self.ltail,l_AOI)
 			self.lgrow(lseed)
-			seeds.append(lseed)
-		return seeds
+		return rseed,lseed
 
 	def sampleAOI(self,c,AOI):
 		edges = self.edges
@@ -451,7 +517,7 @@ class Curve2():
 		h2 = "INSTANCE of Curve OBJECT\n"
 		l1 = "	left end at (%i,%i)\n" % (self.ltail[0],self.ltail[1])
 		l2 = "	right end at (%i,%i)\n" % (self.rtail[0],self.rtail[1])
-		l3 = "	length of %f \n" % self.l_tot
+		l3 = "	confidence of %f \n" % self.conf
 		l4 = "	curvature is %f \n" % round(self.c_tot,4)
 		l5 = "	est. radius is %f \n" % self.radius
 		return h1+h2+l1+l2+l3+l4+l5+h1
@@ -578,12 +644,6 @@ def watershedSeg(img,nsteps,scope=1):
 		new_step = np.zeros(img.shape)
 	return cumul
 
-def findCurves(edges,gradients):
-
-	curveMap = None
-
-	curveList = None
-
 def edgeSniffer(edges,grouping=40,style='relative'):
 	#take an image of edge likelihoods
 	# finds the best edge candidate in a section of grouping^2 pixels
@@ -624,10 +684,6 @@ def edgeSniffer(edges,grouping=40,style='relative'):
 	indices = indices[np.where(maxes > 0.2)]
 
 	return indices
-
-def localConnector(curve1,curve2):
-		# when two curves become very close to each other
-		pass
 
 def getEdgeKernel(size, orientation):
 	# size must be odd
@@ -679,26 +735,37 @@ def singleEdgeFinder(loc,edges,gradients,stepwise=True,verbose=True):
 
 	plt.figure(figsize=(9,7))
 	width = 40
-	plt.imshow(rgba[max_i-width:max_i+width,max_j-width:max_j+width],
-				extent = [max_j-width,max_j+width,max_i+width,max_i-width])
+	img_plt = plt.imshow(rgba[max_i-width:max_i+width,max_j-width:max_j+width],extent= [max_j-width,max_j+width,max_i+width,max_i-width])
 	plt.autoscale(False)
+	plt.plot([seed[1]+0.5,seed[1]+0.5+2*np.cos(gradients[seed])],
+				[seed[0]+0.5,seed[0]+0.5+2*np.sin(gradients[seed])],'r-')
 	path, = plt.plot([],[],'b-')
+	center, = plt.plot([],[],'r*')
+	vec, = plt.plot([],[],'y-')
 	plt.tight_layout()
-	n_steps = 25
+	n_steps = 10
 	for i in xrange(n_steps):
-		seeds = curve.expand()
-		for s in seeds:
-			rgba[s] = 0,0,1,1
+		rseed,lseed = curve.expand()
+		if rseed is not None:
+			rgba[tuple(rseed)] = 0,0,1,1
+		if lseed is not None:
+			rgba[tuple(lseed)] = 0,1,0,1
 		if stepwise:
-			px,py = curve.path()
+			px,py,c,v = curve.path()
+			img_plt.set_data(rgba[max_i-width:max_i+width,max_j-width:max_j+width])
 			path.set_data(py,px)
-			plt.title('after %i steps' % (i+1))
+			if v is not None:
+				vec.set_data([c[1]+0.5,c[1]+0.5+v[1]],[c[0]+0.5,c[0]+0.5+v[0]])
+			if c is not None:
+				center.set_data(c[1]+0.5,c[0]+0.5)
+			plt.title('after %i steps' % (i+1)) 
 			plt.draw()
 			plt.pause(0.15)
 		if verbose:
 			print(curve)
-	px,py = curve.path()
-	path.set_data(py,px)
+	# px,py = curve.path()
+	# path.set_data(py,px)
+	# img_plt.set_data(rgba[max_i-width:max_i+width,max_j-width:max_j+width])
 	plt.show()
 
 def multiEdgeFinder(edges,gradients,grouping=50,n_steps=5):
@@ -745,9 +812,10 @@ if __name__ == "__main__":
 	edges,gradients = sobelOp(S_img)
 	# plt.imshow(blur(edges),cmap='gray',vmin=0.,vmax = 1.)
 	# plt.tight_layout()
-
+# 
 	# multiEdgeFinder(edges,gradients,n_steps=5)
 	loc = 51,87
+	loc = 161,92
 	singleEdgeFinder(loc,edges,gradients)
 
 
@@ -781,8 +849,7 @@ The curve representation:
 	-stepwise update rule
 	-globally specific for comparion/joining
 	-nondiscrete predictions
-
-
+	-parallelizable
 """
 
 
