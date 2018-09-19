@@ -178,255 +178,157 @@ class Image():
 		ret[:,:,2] = np.reshape(array[2],dim)
 		return ret
 
+class Eye():
+	def __init__(self,image):
+		self.image = image
+		self.edges,self.gradients = sobelOp(self.image)
+		self.edges = self.edges/np.amax(self.edges)
+		self.gradients = -self.gradients
+		self.origin = np.array(self.image.shape,dtype=int)/2
+		self.rxmax = self.origin[1]
+		self.rymax = self.origin[0]
+
+	def edgeR(self,rx,ry):
+		px,py = realToPix(rx,ry)
+		return self.EdgeP(px,py)
+
+	def edgeP(self,px,py):
+		return self.edges[px,py]
+
+	def rgradient(self,rx,ry):
+		px,py = realToPix(rx,ry)
+		return self.gradientP(px,py)
+
+	def pgradient(self,px,py):
+		return self.gradients[px,py]
+
+	def Pgradient(self,PXY):
+		return self.gradients[PXY[:,0],PXY[:,1]]
+
+	def Rgradient(self,RXY):
+		PXY = self.realToPixArray(RXY)
+		return self.Pgradient(PXY)
+
+	def pixToReal(self,px,py):
+		rx = py-self.origin[1]
+		ry = self.origin[0] - px
+		return rx,ry
+
+	def pixToRealArray(self,PXY):
+		RXY = np.flip(np.multiply(PXY.astype(np.float32)-self.origin,np.array([-1,1])),1)
+		return RXY
+
+	def realToPix(self,rx,ry):
+		px = int(self.origin[0]-ry)
+		py = int(rx+self.origin[1])
+		return px,py
+
+	def realToPixArray(self,RXY):
+		PXY = (np.multiply(np.flip(RXY,1),np.array([-1,1]))+self.origin).astype(int)
+		return PXY
+
+	def see(self,complete=True):
+		plt.figure(figsize=(7,4))
+		plt.xticks(np.arange(2*self.rxmax+1,step=self.rxmax/2-0.2),
+				[str(-self.rxmax),str(-self.rxmax/2),'0',str(self.rxmax/2),str(self.rxmax)])
+		plt.yticks(np.arange(2*self.rymax+1,step=self.rymax/2-0.2),
+				[str(-self.rymax),str(-self.rymax/2),'0',str(self.rymax/2),str(self.rymax)])
+		rgba = plt.cm.gray(self.edges)
+		rgba[tuple(self.origin)] = 1,0,0,1
+		plt.imshow(rgba)
+		plt.autoscale(False)
+		plt.tight_layout()
+		if complete:
+			plt.show()			
+
+	def findCurves(self,grouping=5):
+		p_PoI = edgeSniffer(self.edges,grouping)	
+		r_PoI = self.pixToRealArray(p_PoI)
+		# r_PoI = np.array(((54,51),(-56,46)))
+		# p_PoI = self.realToPixArray(r_PoI)
+		# self.see(False)
+		plt.figure(figsize=(11,7))
+		plt.xlim(-self.rxmax,self.rxmax)
+		plt.ylim(-self.rymax,self.rymax)
+		plt.plot(r_PoI[:,0],r_PoI[:,1],'r*')
+		thetas = self.Pgradient(p_PoI)
+		for i in range(thetas.size):
+			plt.plot([r_PoI[i,0],r_PoI[i,0]+2*np.cos(thetas[i])],
+					[r_PoI[i,1],r_PoI[i,1]+2*np.sin(thetas[i])],'k-')
+		plt.tight_layout()
+
+		for pt in p_PoI:
+			curve = Curve(pt,self)
+			curve.expand()
+			path = curve.rpath()
+			plt.plot(path[:,0],path[:,1],'b-')
+
+			# curve.expand()
+			# path = curve.rpath()
+			# plt.plot(path[:,0],path[:,1],'b-')
+			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
+			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
+			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
+			# for i in range(2):
+			# 	plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
+			# 			[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
+		plt.show()
+
 class Curve():
-	A = 0.0 #[0,1] bias of gradient measurements over local slope estimate
-	def __init__(self,start,end,side):
-		#direction is an angle that the curve will move towards
-		self.start = np.array(start)
-		self.end = np.array(end)
-		self.l_tot = np.linalg.norm(self.end-self.start)
-		self.v_old = (self.end-self.start)/self.l_tot #must be normalized
-		self.c_tot = 0
-		self.l_old = self.l_tot
-		self.status = 'growing'
-		self.side = side
 
-	def update(self,new_pt,grad_new):
-		##### assign directions to v_old & v_new
-		new_pt = np.array(new_pt)
-		vec_old_to_new = new_pt - self.end
-		l_new = np.linalg.norm(vec_old_to_new)
-		dir_old = np.arctan2(self.v_old[0],self.v_old[1])	
-		dir_new = grad_new + self.side*np.pi/2.
-		v_new = self.A*(vec_old_to_new/l_new) + \
-				(1-self.A)*np.array([np.sin(dir_new),np.cos(dir_new)])
-		th = np.arccos(np.dot(-self.v_old,v_new))
-		denom = np.sqrt(self.l_old**2 + l_new**2 - 2*self.l_old*l_new*np.dot(-self.v_old,v_new))
-		if abs(denom) > 0.01:
-			c_new = 2*np.sin(th)/(denom)
-			th_dif = dir_new%(2*np.pi) - dir_old%(2*np.pi)
-			if th_dif < 0:
-				c_new *= -1.0
-		else:
-			c_new = 0.0
-
-		print('v_old: (%i,%i)' % tuple(self.v_old))
-		print('l_new: %f' % l_new)
-		print('old_direction: %f' % round(dir_old,3))
-		print('vec_old_to_new: (%i,%i)' % tuple(vec_old_to_new[:]))
-		print('new_direction: %f' % round(dir_new,3))
-		print('v_new: (%f,%f)' % tuple(v_new[:]))
-		print('theta: %f' % round(th,4))
-		print('c_new: %f' % round(c_new,3))
-		self.c_tot = (self.l_tot*self.c_tot + l_new*c_new)/(self.l_tot+l_new)
-		self.l_tot += l_new
-		self.l_old = l_new
-		self.v_old = v_new
-		self.end[:] = new_pt[:]
-
-	def createPath(self):
-		# this creates a continuous path
-		if abs(self.c_tot) < 0.005:
-			x = [self.start[0],self.end[0]]
-			y = [self.start[1],self.end[1]]
-			return np.array(x),np.array(y)
-		r = 1./self.c_tot
-		th = self.l_tot/r 
-		n_segments = 25
-		dth = th/n_segments
-
-		#find the center of rotation: http://mathforum.org/library/drmath/view/53027.html
-		mid_pt = (self.start+self.end)/2.
-		vec = self.end-self.start
-		q = np.linalg.norm(self.end-self.start)
-		vec_norm = (self.end-self.start)/q
-		th_rot = np.pi/2
-		c,s = np.cos(th_rot),np.sin(th_rot)
-		R_matrix = np.array(((c,-s), (s, c))).T
-		rotated_vec = np.dot(R_matrix,vec_norm)
-		CoR = mid_pt + np.sign(self.c_tot)*np.sqrt(r**2-(q/2.)**2)*rotated_vec
-		n_points = 20
-		c,s = np.cos(dth),np.sin(dth)
-		dR_matrix = np.array(((c,-s), (s, c))).T
-		x = [self.start[0]]
-		y = [self.start[1]]
-		pointing_vec = self.start-CoR	
-		for i in xrange(n_points):
-			pointing_vec = np.dot(dR_matrix,pointing_vec)
-			x.append(CoR[0]+pointing_vec[0])
-			y.append(CoR[1]+pointing_vec[1])
-		return np.array(x),np.array(y)
-
-	def __str__(self):
-		h1 = '<'+'-'*25+'>\n'
-		h2 = "INSTANCE of Curve OBJECT\n"
-		l1 = "	starts at (%i,%i)\n" % (self.start[0],self.start[1])
-		l2 = "	ends at (%i,%i)\n" % (self.end[0],self.end[1])
-		l3 = "	length of %f \n" % self.l_tot
-		l4 = "	curvature is %f \n" % round(self.c_tot,3)
-		return h1+h2+l1+l2+l3+l4+h1
-
-class Curve2():
-	A = 0.0
-	# double ended curve
-	def __init__(self,seed,edges,gradients):
-		self.rtail = np.array(seed)
-		self.ltail = np.array(seed)
-		self.rstatus = 'seeded'
-		self.lstatus = 'seeded'
-		self.status = 'growing'
-		self.c_tot = 0.0
-		self.l_tot = 0.0
-		self.l_old = 0.0
-		self.radius = np.inf
-		self.edges = edges 
-		self.grads = gradients
-		self.AOIs = Curve2.getAOIs()
-		self.seed = seed
-
-	def getC_new(self,pt,grad,side,tail,v_est):
-		new_dir = grad + side*np.pi/2
-		vec_old_to_new = pt - tail
-		l_new = np.linalg.norm(vec_old_to_new)
-		old_dir = np.arctan2(v_est[0],v_est[1])
-		v_new = self.A*(vec_old_to_new/l_new) + \
-				(1-self.A)*np.array([np.sin(new_dir),np.cos(new_dir)])
-		th = np.arccos(np.dot(-v_est,v_new))
-		denom = np.sqrt(self.l_old**2 + l_new**2 - 2*self.l_old*l_new*np.dot(-v_est,v_new))
-		if abs(denom) > 0.01:
-			c_new = 2*np.sin(th)/(denom)
-			th_dif = new_dir%(2*np.pi) - old_dir%(2*np.pi)
-			if th_dif < 0:
-				c_new *= -1.0
-		else:
-			c_new = 0.0
-
-		return c_new,l_new
-		
-
-	def getV_est(self,status,grad,side):
-		vec_lr = self.rtail-self.ltail
-		q = np.linalg.norm(vec_lr)
-		if status == 'growing':
-			uvec_lr = vec_lr/q
-			angle_prog = side*np.arcsin(q*self.c_tot/2.)
-			c,s = np.cos(angle_prog),np.sin(angle_prog)
-			R_matrix = np.array(((c,-s), (s, c))).T
-			uvec_rl = side*uvec_lr 
-			v_est = np.dot(R_matrix,uvec_rl)
-		elif status == 'seeded':
-			v_est = np.array([np.sin(grad+side*np.pi/2),np.cos(grad+side*np.pi/2)])
-		return v_est
-
-	def getSideSpecificInfo(self,side_desc):
-		if side_desc =='right':
-			side = 1
-			status = self.rstatus
-			tail = self.rtail
-		elif side_desc == 'left':
-			side = -1
-			tail = self.ltail
-			status = self.lstatus
-		else:
-			raise TypeError
-		return side,status,tail
-
-	def changeSideSpecificInfo(self,side_desc,new_tail,new_status):
-		if side_desc == 'right':
-			self.rtail = new_tail[:]
-			self.rstatus = new_status
-		else:
-			self.ltail = new_tail[:]
-			self.lstatus = new_status
-
-	def grow(self,pt,side_desc):
-		grad = self.grads[tuple(pt)]
-		pt = np.array(pt)
-
-		side,status,tail = self.getSideSpecificInfo(side_desc)
-		v_est = self.getV_est(status,grad,side)
-		c_new,l_new = self.getC_new(pt,grad,side,tail,v_est)
-		self.c_tot = (self.l_tot*self.c_tot + side*l_new*c_new)/(self.l_tot+l_new)
-		q = np.linalg.norm(self.rtail-self.ltail)
-		if q > 0.0 and abs(self.c_tot) > 2/q:
-			self.c_tot = 2./q
-		self.radius = 1/self.c_tot if abs(self.c_tot) > 0.0001 else np.inf
-		self.l_tot += l_new
-		self.l_old = l_new
-
-		new_status = 'growing'
-		self.changeSideSpecificInfo(side_desc,pt,new_status)
-		
-	def rgrow(self,rseed):
-		return self.grow(rseed,'right')
-
-	def lgrow(self,lseed):
-		return self.grow(lseed,'left')
-
-	def path(self):
-		# go from left to right
-		if abs(self.c_tot) < 0.005:
-			x = [self.ltail[0],self.rtail[0]]
-			y = [self.ltail[1],self.rtail[1]]
-			return np.array(x),np.array(y)
-
-		#find the center of rotation: http://mathforum.org/library/drmath/view/53027.html
-		mid_pt = (self.ltail+self.rtail)/2.
-		vec = self.rtail-self.ltail
-		q = np.linalg.norm(self.rtail-self.ltail)
-		r = self.radius
-		th = 2*np.arcsin(min(q*self.c_tot/2.,1.0)) 
-		n_segments = 20
-		dth = th/n_segments
-		vec_norm = (self.rtail-self.ltail)/q
-		th_rot = np.pi/2
-		c,s = np.cos(th_rot),np.sin(th_rot)
-		R_matrix = np.array(((c,-s), (s, c))).T
-		rotated_vec = np.dot(R_matrix,vec_norm)
-		# CoR = mid_pt + np.sign(self.c_tot)*np.sqrt(r**2-(q/2.)**2)*rotated_vec
-		CoR = self.seed + np.sign(self.c_tot)*r*rotated_vec + np.array([0.5,0.5])
-
-		n_points = 20
-		c,s = np.cos(-dth),np.sin(-dth)
-		dR_matrix = np.array(((c,-s), (s, c))).T
-		x = [self.seed[0]+0.5]
-		y = [self.seed[1]+0.5]
-		pointing_vec = -np.sign(self.c_tot)*r*rotated_vec	
-		for i in xrange(n_points//2):
-			pointing_vec = np.dot(dR_matrix,pointing_vec)
-			x.append(CoR[0]+pointing_vec[0])
-			y.append(CoR[1]+pointing_vec[1])
-		x.reverse()
-		y.reverse()
-		c,s = np.cos(dth),np.sin(dth)
-		dR_matrix = np.array(((c,-s), (s, c))).T
-		pointing_vec = -np.sign(self.c_tot)*r*rotated_vec
-		for i in xrange(n_points//2):
-			pointing_vec = np.dot(dR_matrix,pointing_vec)
-			x.append(CoR[0]+pointing_vec[0])
-			y.append(CoR[1]+pointing_vec[1])
-		return np.array(x),np.array(y)
+	def __init__(self,pseed,eye):
+		self.curv = 0.0
+		self.eye = eye
+		self.tilt = self.eye.pgradient(pseed[0],pseed[1])
+		self.pseed = tuple(pseed)
+		self.pLtail = tuple(pseed)
+		self.pRtail = tuple(pseed)
+		self.length = 0
+		self.AOIs = Curve.getAOIs()
 
 	def expand(self):
-		seeds = []
-		if self.rstatus != 'dormant':
-			r_dir = self.grads[tuple(self.rtail)] + np.pi/2
-			r_AOI_id = Curve2.selectAOI(r_dir)
-			r_AOI = self.AOIs[r_AOI_id]
-			rseed,_ = self.sampleAOI(self.rtail,r_AOI)
-			self.rgrow(rseed)
-			seeds.append(rseed)
-		if self.lstatus != 'dormant':
-			l_dir = self.grads[tuple(self.ltail)] - np.pi/2
-			l_AOI_id = Curve2.selectAOI(l_dir)
-			l_AOI = self.AOIs[l_AOI_id]
-			lseed,_ = self.sampleAOI(self.ltail,l_AOI)
-			self.lgrow(lseed)
-			seeds.append(lseed)
-		return seeds
+		self.grow('right')
+		self.grow('left')
+
+	def getSideInfo(self,side_desc):
+		if side_desc == 'right':
+			side = -1
+			ptail = self.pRtail
+		else:
+			side = 1
+			ptail = self.pLtail
+		return side, ptail
+
+	def setSideInfo(self,side_desc,ptail):
+		if side_desc == 'right':
+			self.pRtail = ptail
+		else:
+			self.pLtail = ptail
+
+	def updateTilt(self,new_th):
+		diff = angleDiff(new_th,self.tilt)
+		self.tilt += diff/(self.length)**1.5
+
+	def grow(self,side_desc):
+		side,ptail = self.getSideInfo(side_desc)
+		tail_dir = self.eye.pgradient(ptail[0],ptail[1])+side*np.pi/2.
+		AOI = self.AOIs[Curve.selectAOI(tail_dir)]
+		new_pt = self.sampleAOI(ptail,AOI)
+		self.length += np.linalg.norm(np.array(new_pt)-np.array(ptail))
+		new_th = self.eye.pgradient(new_pt[0],new_pt[1])
+		self.updateTilt(new_th)
+		self.setSideInfo(side_desc,new_pt)
+
+	def rpath(self):
+		rseed = np.array(self.eye.pixToReal(self.pseed[0],self.pseed[1])).astype(float)
+		if abs(self.curv) < 0.00001:
+			rpath = np.stack((rseed,rseed))
+			rpath[:,0] += np.array([-5,5])*np.cos(self.tilt+np.pi/2)
+			rpath[:,1] += np.array([-5,5])*np.sin(self.tilt+np.pi/2)
+			return rpath
 
 	def sampleAOI(self,c,AOI):
-		edges = self.edges
+		edges = self.eye.edges
 		ci,cj = c
 		AOI_radius = AOI.shape[0]//2
 		AOI_len = AOI.shape[0]
@@ -444,17 +346,18 @@ class Curve2():
 		best_i = best_id//sample.shape[1] + ci-min(ci,AOI_radius)
 		best_j = best_id % sample.shape[1] + cj-min(cj,AOI_radius)
 		rating = 0 # will implement this later
-		return (best_i,best_j), rating
-	
+		return best_i,best_j
+
 	def __str__(self):
-		h1 = '<'+'-'*25+'>\n'
-		h2 = "INSTANCE of Curve OBJECT\n"
-		l1 = "	left end at (%i,%i)\n" % (self.ltail[0],self.ltail[1])
-		l2 = "	right end at (%i,%i)\n" % (self.rtail[0],self.rtail[1])
-		l3 = "	length of %f \n" % self.l_tot
-		l4 = "	curvature is %f \n" % round(self.c_tot,4)
-		l5 = "	est. radius is %f \n" % self.radius
-		return h1+h2+l1+l2+l3+l4+l5+h1
+		# h1 = '<'+'-'*25+'>\n'
+		# h2 = "INSTANCE of Curve OBJECT\n"
+		# l1 = "	left end at (%i,%i)\n" % (self.ltail[0],self.ltail[1])
+		# l2 = "	right end at (%i,%i)\n" % (self.rtail[0],self.rtail[1])
+		# l3 = "	confidence of %f \n" % self.conf
+		# l4 = "	curvature is %f \n" % round(self.c_tot,4)
+		# l5 = "	est. radius is %f \n" % self.radius
+		# return h1+h2+l1+l2+l3+l4+l5+h1
+		pass
 
 	@staticmethod
 	def getAOIs():
@@ -482,14 +385,10 @@ class Curve2():
 	def selectAOI(direction):
 		#returns the index corresponding to the right AOI
 		# direction is an angle
-		direction = np.fmod(-direction,2*np.pi)
-		if direction < 0:
-			direction += 2*np.pi
+		direction = direction%(2*np.pi)
 		#now direction is greater than 0
 		index = (direction +np.pi/8)//(np.pi/4)
 		return int(index)%8
-
-
 ##############
 ##############
 #
@@ -578,16 +477,21 @@ def watershedSeg(img,nsteps,scope=1):
 		new_step = np.zeros(img.shape)
 	return cumul
 
-def findCurves(edges,gradients):
-
-	curveMap = None
-
-	curveList = None
+def angleDiff(new,old):
+	# new minus old
+	new = new%(2*np.pi)
+	old = old%(2*np.pi)
+	diff = (new-old)
+	if diff > np.pi:
+		diff = diff-2*np.pi
+	if diff < -np.pi:
+		diff = 2*np.pi+diff
+	return diff
 
 def edgeSniffer(edges,grouping=40,style='relative'):
 	#take an image of edge likelihoods
 	# finds the best edge candidate in a section of grouping^2 pixels
-	# returns a list of indeces 
+	# returns a list of indices 
 	w,h = edges.shape
 	dividend = h//grouping
 	remainder = h%grouping
@@ -737,18 +641,13 @@ def multiEdgeFinder(edges,gradients,grouping=50,n_steps=5):
 ##################
 
 if __name__ == "__main__":
-	img = Image('simple_edges')
+	img = Image('simple_edges2')
 	# img.showBreakdown(show=False)
 	# img.showBreakdownByEdges()
 	# plt.figure(figsize=(9,7))
 	S_img = img.makeImage(img.HSL[1])
-	edges,gradients = sobelOp(S_img)
-	# plt.imshow(blur(edges),cmap='gray',vmin=0.,vmax = 1.)
-	# plt.tight_layout()
-
-	# multiEdgeFinder(edges,gradients,n_steps=5)
-	loc = 51,87
-	singleEdgeFinder(loc,edges,gradients)
+	eye = Eye(S_img)
+	eye.findCurves()
 
 
 # # resources
