@@ -241,37 +241,47 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,grouping=5):
-		p_PoI = edgeSniffer(self.edges,grouping)	
-		r_PoI = self.pixToRealArray(p_PoI)
-		# r_PoI = np.array(((54,51),(-56,46)))
-		# p_PoI = self.realToPixArray(r_PoI)
+	def findCurves(self,grouping=25):
+		# p_PoI = edgeSniffer(self.edges,grouping)	
+		# r_PoI = self.pixToRealArray(p_PoI)
+		r_PoI = np.array(((-56,46),(54,51)))
+		p_PoI = self.realToPixArray(r_PoI)
 		# self.see(False)
 		plt.figure(figsize=(11,7))
 		plt.xlim(-self.rxmax,self.rxmax)
 		plt.ylim(-self.rymax,self.rymax)
-		plt.plot(r_PoI[:,0],r_PoI[:,1],'r*')
+		# plt.plot(r_PoI[0,0],r_PoI[0,1],'b*')
 		thetas = self.Pgradient(p_PoI)
-		for i in range(thetas.size):
-			plt.plot([r_PoI[i,0],r_PoI[i,0]+2*np.cos(thetas[i])],
-					[r_PoI[i,1],r_PoI[i,1]+2*np.sin(thetas[i])],'k-')
+		# for i in range(thetas.size):
+		i = 0
+		plt.plot([r_PoI[i,0],r_PoI[i,0]+2*np.cos(thetas[i])],
+				[r_PoI[i,1],r_PoI[i,1]+2*np.sin(thetas[i])],'k-')
 		plt.tight_layout()
 
-		for pt in p_PoI:
-			curve = Curve(pt,self)
-			curve.expand()
-			path = curve.rpath()
-			plt.plot(path[:,0],path[:,1],'b-')
-
-			# curve.expand()
+		path_plt, = plt.plot([],[],'b-')
+		for pt in range(1):#p_PoI:
+			curve = Curve(p_PoI[0],self)
+			# for i in range(3):
+			# 	curve.expand()
 			# path = curve.rpath()
-			# plt.plot(path[:,0],path[:,1],'b-')
-			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
-			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
-			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
-			# for i in range(2):
-			# 	plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
-			# 			[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
+			# color = 'k-'
+			# if curve.curv > 0:
+			#  	color = 'g-'
+			# if curve.curv == 0:
+			#  	color = 'k-'
+			# if curve.curv < 0:
+			# 	color = 'r-'
+			# plt.plot(path[:,0],path[:,1],color)
+			for i in range(40):
+				curve.expand()
+				path = curve.rpath()
+				path_plt.set_data(path[:,0],path[:,1])
+				new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
+				plt.plot(new_pts[:,0],new_pts[:,1],'r*')
+				thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
+				for i in range(2):
+					plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
+							[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
 		plt.show()
 
 class Curve():
@@ -287,8 +297,12 @@ class Curve():
 		self.AOIs = Curve.getAOIs()
 
 	def expand(self):
-		self.grow('right')
-		self.grow('left')
+		if np.random.uniform() > 0.5:
+			self.grow('right')
+			self.grow('left')
+		else:
+			self.grow('left')
+			self.grow('right')
 
 	def getSideInfo(self,side_desc):
 		if side_desc == 'right':
@@ -307,7 +321,53 @@ class Curve():
 
 	def updateTilt(self,new_th):
 		diff = angleDiff(new_th,self.tilt)
-		self.tilt += diff/(self.length)**1.5
+		self.tilt += diff/(self.length)
+
+	def getCnew(self,pt,side_desc):
+		side,ptail = self.getSideInfo(side_desc)
+		vec_StoNew = np.array(pt)-np.array(self.pseed)
+		th_StoNew = np.arctan2(vec_StoNew[1],vec_StoNew[0])
+		q = np.linalg.norm(vec_StoNew)
+
+		#find the curvature given the location of the new point
+		alpha = self.tilt-th_StoNew
+		if abs(abs(alpha) - np.pi/2) < 0.0001:
+			c_loc = 0.0
+		else:	
+			r_loc = q/(2*np.cos(abs(alpha)))
+			c_loc = side*np.sign(alpha)/r_loc
+		c_loc = np.clip(c_loc,-0.1,0.1)
+		# find the curvature based on the gradient of the new point
+		new_grad = self.eye.pgradient(pt[0],pt[1])
+		beta = angleDiff(new_grad,self.tilt)
+		if beta%np.pi == 0:
+			c_grad = 0.0
+		else:
+			c_grad = -side*np.sign(beta)*2*np.sin(abs(beta)/2.)/q
+		c_grad = np.clip(c_grad,-0.1,0.1)
+
+		z = self.length/10
+		z = np.clip(z,0,1)
+		c_new = (z*c_loc+(1-z)*c_grad)/2
+		return c_new
+
+	def getAngleProg(self,vec_StoTail,q):
+		if abs(self.curv) < 0.0001 or q == 0:
+			return 0
+		th_StoTail = abs(np.arctan2(vec_StoTail[1],vec_StoTail[0]))
+		alpha = angleDiff(self.tilt,th_StoTail)
+		return np.sign(alpha)*(np.pi-2*abs(alpha))
+
+	def getModeledTail(self,side,angleProg):
+		# only works if angleProg != 0
+		q_model = 2.0/abs(self.curv)*np.sin(angleProg/2.)
+		alpha = (np.pi-angleProg)/2.
+		model_tail = q*np.array((np.cos(self.tilt+side*alpha),np.sin(self.tilt+side*alpha)))
+		return model_tail
+
+	def updateCurv(self,pt,side_desc):
+		c_new = self.getCnew(pt,side_desc)
+		self.curv += (c_new-self.curv)/(self.length)
 
 	def grow(self,side_desc):
 		side,ptail = self.getSideInfo(side_desc)
@@ -317,6 +377,7 @@ class Curve():
 		self.length += np.linalg.norm(np.array(new_pt)-np.array(ptail))
 		new_th = self.eye.pgradient(new_pt[0],new_pt[1])
 		self.updateTilt(new_th)
+		self.updateCurv(new_pt,side_desc)
 		self.setSideInfo(side_desc,new_pt)
 
 	def rpath(self):
@@ -326,6 +387,25 @@ class Curve():
 			rpath[:,0] += np.array([-5,5])*np.cos(self.tilt+np.pi/2)
 			rpath[:,1] += np.array([-5,5])*np.sin(self.tilt+np.pi/2)
 			return rpath
+		radius = 1/self.curv
+		rcenter = rseed + radius*np.array((np.cos(self.tilt),np.sin(self.tilt)))
+		vec_CtoS = rseed - rcenter
+		holding_vec = rseed-rcenter
+		dth = np.pi/50
+		c,s = np.cos(dth),np.sin(dth)
+		dR_matrix = np.array(((c,-s), (s, c)))
+		output = np.empty((40,2))
+		for i in xrange(20,40):
+			holding_vec = np.dot(dR_matrix,holding_vec)
+			output[i,:] = holding_vec[:]
+		holding_vec = rseed-rcenter
+		c,s = np.cos(-dth),np.sin(-dth)
+		dR_matrix = np.array(((c,-s), (s, c)))
+		for i in np.arange(20)[::-1]:
+			holding_vec = np.dot(dR_matrix,holding_vec)
+			output[i,:] = holding_vec[:]
+		output += rcenter + 0.5
+		return output
 
 	def sampleAOI(self,c,AOI):
 		edges = self.eye.edges
@@ -401,6 +481,27 @@ def getEdges(img,o):
 	k = getEdgeKernel(7,o)
 	edges = ndimage.convolve(img,k,mode='constant',cval=0.0)
 	return edges
+
+def guassianFilter(img,sigma=1.0):
+	return ndimage.filters.gaussian_filter(img,sigma)
+
+def scharrOp(img):
+	Kx = np.array([[3.0,0,-3.0], [10.0,0.0,-10.0], [3.0,0.0,-3.0]])
+	Ky = np.array([[3.0,10.0,3.0], [0.0,0.0,0.0], [-3.0,-10.0,-3.0]])
+	Gx = ndimage.convolve(img,Kx,mode='nearest')
+	Gy = ndimage.convolve(img,Ky,mode='nearest')
+	edges = np.sqrt(np.multiply(Gx,Gx)+np.multiply(Gy,Gy))
+	gradients = np.arctan2(Gy,Gx)
+	return edges, gradients
+
+def prewittOp(img):
+	Kx = np.array([[1.0,0,-1.0], [1.0,0.0,-1.0], [1.0,0.0,-1.0]])
+	Ky = np.array([[1.0,1.0,1.0], [0.0,0.0,0.0], [-1.0,-1.0,-1.0]])
+	Gx = ndimage.convolve(img,Kx,mode='nearest')
+	Gy = ndimage.convolve(img,Ky,mode='nearest')
+	edges = np.sqrt(np.multiply(Gx,Gx)+np.multiply(Gy,Gy))
+	gradients = np.arctan2(Gy,Gx)
+	return edges, gradients
 
 def sobelOp(img):
 	Kx = np.array([[1.0,0,-1.0], [2.0,0.0,-2.0], [1.0,0.0,-1.0]])
@@ -642,9 +743,6 @@ def multiEdgeFinder(edges,gradients,grouping=50,n_steps=5):
 
 if __name__ == "__main__":
 	img = Image('simple_edges2')
-	# img.showBreakdown(show=False)
-	# img.showBreakdownByEdges()
-	# plt.figure(figsize=(9,7))
 	S_img = img.makeImage(img.HSL[1])
 	eye = Eye(S_img)
 	eye.findCurves()
