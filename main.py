@@ -218,9 +218,13 @@ class Eye():
 		RXY = np.flip(np.multiply(PXY.astype(np.float32)-self.origin,np.array([-1,1])),1)
 		return RXY
 
-	def realToPix(self,rx,ry):
-		px = int(self.origin[0]-ry)
-		py = int(rx+self.origin[1])
+	def realToPix(self,rx,ry,rounded=True):
+		if rounded:
+			dtype = int
+		else:
+			dtype = float 
+		px = dtype(self.origin[0]-ry)
+		py = dtype(rx+self.origin[1])
 		return px,py
 
 	def realToPixArray(self,RXY,rounded=True):
@@ -243,22 +247,27 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(107,133),anim=True):
+	def findCurves(self,p_loc=(49,267),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
-		path_plt, = plt.plot([],[],'b-')
-		for step_num in range(5):
+		path_plt, = plt.plot([],[],'r-')
+		center_plt, = plt.plot([],[],'g.')
+		for step_num in range(31):
 			if step_num == 0:
 				curve = Curve(p_loc,self)
 			else:
 				curve.expand()
 			print(curve)
-			path = self.realToPixArray(curve.rpath(),rounded=False)
+			rpath,rcenter = curve.rpath()
+			path = self.realToPixArray(rpath,rounded=False)
+			if rcenter is not None:
+				center = self.realToPix(rcenter[0],rcenter[1],rounded=False)
+				center_plt.set_data(center[1],center[0])
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % step_num)
 			if anim:
 				plt.draw()
-				plt.pause(0.5)
+				plt.pause(0.05)
 			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
 			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
 			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
@@ -268,7 +277,6 @@ class Eye():
 		plt.show()
 
 class Curve():
-
 	def __init__(self,pseed,eye):
 		self.curv = 0.0
 		self.eye = eye
@@ -280,7 +288,7 @@ class Curve():
 		self.AOIs = Curve.getAOIs()
 
 	def expand(self):
-		if np.random.uniform() > 0.5:
+		if np.random.uniform() > 1:
 			self.grow('right')
 			self.grow('left')
 		else:
@@ -329,12 +337,13 @@ class Curve():
 			c_grad = -side*np.sign(beta)*2*np.sin(abs(beta)/2.)/q
 		c_grad = np.clip(c_grad,-0.1,0.1)
 
-		z = self.length/10
-		z = np.clip(z,0,1)
+		z = self.length/5
+		z = np.clip(z,0,1.)
 		c_new = (z*c_loc+(1-z)*c_grad)/2
 		return c_new
 
 	def getAngleProg(self,vec_StoTail,q):
+		print('getAngelProg doesnt work correctly')
 		if abs(self.curv) < 0.0001 or q == 0:
 			return 0
 		th_StoTail = abs(np.arctan2(vec_StoTail[1],vec_StoTail[0]))
@@ -364,31 +373,39 @@ class Curve():
 		self.setSideInfo(side_desc,new_pt)
 
 	def rpath(self):
+		num_points = 20
 		rseed = np.array(self.eye.pixToReal(self.pseed[0],self.pseed[1])).astype(float)
+		q = np.linalg.norm(np.subtract(self.pRtail,self.pLtail))
 		if abs(self.curv) < 0.00001:
 			rpath = np.stack((rseed,rseed))
-			rpath[:,0] += np.array([-5,5])*np.cos(self.tilt+np.pi/2)
-			rpath[:,1] += np.array([-5,5])*np.sin(self.tilt+np.pi/2)
-			return rpath
+			q = max(3,q)
+			rpath[:,0] += np.array([-1,1])*0.5*q*np.cos(self.tilt+np.pi/2)
+			rpath[:,1] += np.array([-1,1])*0.5*q*np.sin(self.tilt+np.pi/2)
+			return rpath,None
 		radius = 1/self.curv
 		rcenter = rseed + radius*np.array((np.cos(self.tilt),np.sin(self.tilt)))
 		vec_CtoS = rseed - rcenter
-		holding_vec = rseed-rcenter
-		dth = np.pi/50
+		holding_vec = rseed - rcenter
+		vec_StoRTail = np.subtract(self.pRtail,self.pseed)
+		rq = np.linalg.norm(vec_StoRTail)
+		rThProg = 2*np.arcsin(rq/(2*radius))
+		vec_StoLTail = np.subtract(self.pLtail,self.pseed)
+		lq = np.linalg.norm(vec_StoLTail)
+		lThProg = 2*np.arcsin(lq/(2*radius))
+
+		c,s = np.cos(-abs(rThProg)),np.sin(-abs(rThProg))
+		dR_matrix = np.array(((c,-s), (s, c)))
+		holding_vec = np.dot(dR_matrix,holding_vec)
+		dth = (abs(lThProg)+abs(rThProg))/(num_points-1)
 		c,s = np.cos(dth),np.sin(dth)
 		dR_matrix = np.array(((c,-s), (s, c)))
-		output = np.empty((40,2))
-		for i in xrange(20,40):
-			holding_vec = np.dot(dR_matrix,holding_vec)
-			output[i,:] = holding_vec[:]
-		holding_vec = rseed-rcenter
-		c,s = np.cos(-dth),np.sin(-dth)
-		dR_matrix = np.array(((c,-s), (s, c)))
-		for i in np.arange(20)[::-1]:
+		output = np.empty((num_points,2))
+		output[0,:] = holding_vec
+		for i in xrange(1,num_points):
 			holding_vec = np.dot(dR_matrix,holding_vec)
 			output[i,:] = holding_vec[:]
 		output += rcenter + 0.5
-		return output
+		return output,np.array(rcenter)
 
 	def sampleAOI(self,c,AOI):
 		edges = self.eye.edges
