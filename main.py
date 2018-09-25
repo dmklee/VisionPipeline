@@ -247,12 +247,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(49,267),anim=True):
+	def findCurves(self,p_loc=(61,139),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		for step_num in range(31):
+		for step_num in range(50):
 			if step_num == 0:
 				curve = Curve(p_loc,self)
 			else:
@@ -285,15 +285,11 @@ class Curve():
 		self.pLtail = tuple(pseed)
 		self.pRtail = tuple(pseed)
 		self.length = 0
+		self.age = 0
 		self.AOIs = Curve.getAOIs()
 
 	def expand(self):
-		if np.random.uniform() > 1:
-			self.grow('right')
-			self.grow('left')
-		else:
-			self.grow('left')
-			self.grow('right')
+		self.grow()
 
 	def getSideInfo(self,side_desc):
 		if side_desc == 'right':
@@ -310,67 +306,62 @@ class Curve():
 		else:
 			self.pLtail = ptail
 
-	def updateTilt(self,new_th):
-		diff = angleDiff(new_th,self.tilt)
-		self.tilt += diff/(self.length)
+	def getCnew(self,p_lnew,p_rnew):
+		r_lnew = self.eye.pixToReal(p_lnew[0],p_lnew[1])
+		r_rnew = self.eye.pixToReal(p_rnew[0],p_rnew[1])
+		r_seed = self.eye.pixToReal(self.pseed[0],self.pseed[1])
+		rvec_StoL = np.subtract(r_lnew,r_seed)
+		q_StoL = np.linalg.norm(rvec_StoL)
+		rvec_StoR = np.subtract(r_rnew,r_seed)
+		q_StoR = np.linalg.norm(rvec_StoR)
 
-	def getCnew(self,pt,side_desc):
-		side,ptail = self.getSideInfo(side_desc)
-		vec_StoNew = np.array(pt)-np.array(self.pseed)
-		th_StoNew = np.arctan2(vec_StoNew[1],vec_StoNew[0])
-		q = np.linalg.norm(vec_StoNew)
+		#c based on point locations
+		angle_LSR = np.arccos(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL))
+		q_LtoR = np.linalg.norm(np.subtract(r_rnew,r_lnew))
+		c = 2*np.sin(angle_LSR)/q_LtoR
+		sgn = -np.sign(np.cross(rvec_StoL,rvec_StoR))
+		c_loc = sgn*abs(c)
 
-		#find the curvature given the location of the new point
-		alpha = self.tilt-th_StoNew
-		if abs(abs(alpha) - np.pi/2) < 0.0001:
-			c_loc = 0.0
-		else:	
-			r_loc = q/(2*np.cos(abs(alpha)))
-			c_loc = side*np.sign(alpha)/r_loc
-		c_loc = np.clip(c_loc,-0.1,0.1)
-		# find the curvature based on the gradient of the new point
-		new_grad = self.eye.pgradient(pt[0],pt[1])
-		beta = angleDiff(new_grad,self.tilt)
-		if beta%np.pi == 0:
-			c_grad = 0.0
-		else:
-			c_grad = -side*np.sign(beta)*2*np.sin(abs(beta)/2.)/q
-		c_grad = np.clip(c_grad,-0.1,0.1)
+		#c based on gradients
+		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
+		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
+		th_diff = abs(angleDiff(th_rnew,th_lnew))
+		c_grad = -2*np.sin(th_diff/2.)/q_LtoR
 
-		z = self.length/5
-		z = np.clip(z,0,1.)
-		c_new = (z*c_loc+(1-z)*c_grad)/2
+		z = np.clip(self.age/4,0,0.5)
+
+		c_new = (z*c_loc+(1-z)*c_grad)
 		return c_new
 
-	def getAngleProg(self,vec_StoTail,q):
-		print('getAngelProg doesnt work correctly')
-		if abs(self.curv) < 0.0001 or q == 0:
-			return 0
-		th_StoTail = abs(np.arctan2(vec_StoTail[1],vec_StoTail[0]))
-		alpha = angleDiff(self.tilt,th_StoTail)
-		return np.sign(alpha)*(np.pi-2*abs(alpha))
+	def updateCurv(self,p_lnew,p_rnew):
+		c_new = self.getCnew(p_lnew,p_rnew)
+		self.curv += (c_new-self.curv)/(self.age)
 
-	def getModeledTail(self,side,angleProg):
-		# only works if angleProg != 0
-		q_model = 2.0/abs(self.curv)*np.sin(angleProg/2.)
-		alpha = (np.pi-angleProg)/2.
-		model_tail = q*np.array((np.cos(self.tilt+side*alpha),np.sin(self.tilt+side*alpha)))
-		return model_tail
+	def updateTilt(self,p_lnew,p_rnew):
+		if self.age < 6:
+			#contributions are too small to care after that 
+			th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
+			th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
+			est_tilt = th_lnew + angleDiff(th_rnew,th_lnew)/2
+			self.tilt += (est_tilt-self.tilt)/(self.age)**3
 
-	def updateCurv(self,pt,side_desc):
-		c_new = self.getCnew(pt,side_desc)
-		self.curv += (c_new-self.curv)/(self.length)
+	def grow(self):
+		self.age += 1
 
-	def grow(self,side_desc):
-		side,ptail = self.getSideInfo(side_desc)
-		tail_dir = self.eye.pgradient(ptail[0],ptail[1])+side*np.pi/2.
-		AOI = self.AOIs[Curve.selectAOI(tail_dir)]
-		new_pt = self.sampleAOI(ptail,AOI)
-		self.length += np.linalg.norm(np.array(new_pt)-np.array(ptail))
-		new_th = self.eye.pgradient(new_pt[0],new_pt[1])
-		self.updateTilt(new_th)
-		self.updateCurv(new_pt,side_desc)
-		self.setSideInfo(side_desc,new_pt)
+		# right side
+		rtail_dir = self.eye.pgradient(self.pRtail[0],self.pRtail[1])-np.pi/2.
+		rAOI = self.AOIs[Curve.selectAOI(rtail_dir)]
+		p_rnew = self.sampleAOI(self.pRtail,rAOI)
+
+		#leftside
+		ltail_dir = self.eye.pgradient(self.pLtail[0],self.pLtail[1])+np.pi/2.
+		lAOI = self.AOIs[Curve.selectAOI(ltail_dir)]
+		p_lnew = self.sampleAOI(self.pLtail,lAOI)
+
+		self.updateTilt(p_lnew,p_rnew)
+		self.updateCurv(p_lnew,p_rnew)
+		self.pLtail = p_lnew
+		self.pRtail = p_rnew
 
 	def rpath(self):
 		num_points = 20
