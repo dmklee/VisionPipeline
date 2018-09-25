@@ -223,65 +223,48 @@ class Eye():
 		py = int(rx+self.origin[1])
 		return px,py
 
-	def realToPixArray(self,RXY):
-		PXY = (np.multiply(np.flip(RXY,1),np.array([-1,1]))+self.origin).astype(int)
+	def realToPixArray(self,RXY,rounded=True):
+		PXY = (np.multiply(np.flip(RXY,1),np.array([-1,1]))+self.origin)
+		if rounded:
+			PXY = PXY.astype(int)
 		return PXY
 
 	def see(self,complete=True):
-		plt.figure(figsize=(7,4))
-		plt.xticks(np.arange(2*self.rxmax+1,step=self.rxmax/2-0.2),
-				[str(-self.rxmax),str(-self.rxmax/2),'0',str(self.rxmax/2),str(self.rxmax)])
-		plt.yticks(np.arange(2*self.rymax+1,step=self.rymax/2-0.2),
-				[str(-self.rymax),str(-self.rymax/2),'0',str(self.rymax/2),str(self.rymax)])
+		plt.figure(figsize=(12,8))
+		# plt.xticks(np.arange(2*self.rxmax+1,step=self.rxmax/2-0.2),
+		# 		[str(-self.rxmax),str(-self.rxmax/2),'0',str(self.rxmax/2),str(self.rxmax)])
+		# plt.yticks(np.arange(2*self.rymax+1,step=self.rymax/2-0.2),
+		# 		[str(-self.rymax),str(-self.rymax/2),'0',str(self.rymax/2),str(self.rymax)])
 		rgba = plt.cm.gray(self.edges)
-		rgba[tuple(self.origin)] = 1,0,0,1
+		# rgba[tuple(self.origin)] = 1,0,0,1
 		plt.imshow(rgba)
 		plt.autoscale(False)
 		plt.tight_layout()
 		if complete:
 			plt.show()			
 
-	def findCurves(self,grouping=25):
-		# p_PoI = edgeSniffer(self.edges,grouping)	
-		# r_PoI = self.pixToRealArray(p_PoI)
-		r_PoI = np.array(((-56,46),(54,51)))
-		p_PoI = self.realToPixArray(r_PoI)
-		# self.see(False)
-		plt.figure(figsize=(11,7))
-		plt.xlim(-self.rxmax,self.rxmax)
-		plt.ylim(-self.rymax,self.rymax)
-		# plt.plot(r_PoI[0,0],r_PoI[0,1],'b*')
-		thetas = self.Pgradient(p_PoI)
-		# for i in range(thetas.size):
-		i = 0
-		plt.plot([r_PoI[i,0],r_PoI[i,0]+2*np.cos(thetas[i])],
-				[r_PoI[i,1],r_PoI[i,1]+2*np.sin(thetas[i])],'k-')
-		plt.tight_layout()
-
+	def findCurves(self,p_loc=(107,133),anim=True):
+		self.see(False)
+		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'b-')
-		for pt in range(1):#p_PoI:
-			curve = Curve(p_PoI[0],self)
-			# for i in range(3):
-			# 	curve.expand()
-			# path = curve.rpath()
-			# color = 'k-'
-			# if curve.curv > 0:
-			#  	color = 'g-'
-			# if curve.curv == 0:
-			#  	color = 'k-'
-			# if curve.curv < 0:
-			# 	color = 'r-'
-			# plt.plot(path[:,0],path[:,1],color)
-			for i in range(40):
+		for step_num in range(5):
+			if step_num == 0:
+				curve = Curve(p_loc,self)
+			else:
 				curve.expand()
-				path = curve.rpath()
-				path_plt.set_data(path[:,0],path[:,1])
-				new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
-				plt.plot(new_pts[:,0],new_pts[:,1],'r*')
-				thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
-				for i in range(2):
-					plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
-							[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
+			print(curve)
+			path = self.realToPixArray(curve.rpath(),rounded=False)
+			path_plt.set_data(path[:,1],path[:,0])
+			plt.title("Curve Growth after %i expansions" % step_num)
+			if anim:
+				plt.draw()
+				plt.pause(0.5)
+			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
+			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
+			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
+			# for i in range(2):
+			# 	plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
+			# 			[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
 		plt.show()
 
 class Curve():
@@ -429,14 +412,14 @@ class Curve():
 		return best_i,best_j
 
 	def __str__(self):
-		# h1 = '<'+'-'*25+'>\n'
-		# h2 = "INSTANCE of Curve OBJECT\n"
-		# l1 = "	left end at (%i,%i)\n" % (self.ltail[0],self.ltail[1])
-		# l2 = "	right end at (%i,%i)\n" % (self.rtail[0],self.rtail[1])
-		# l3 = "	confidence of %f \n" % self.conf
-		# l4 = "	curvature is %f \n" % round(self.c_tot,4)
-		# l5 = "	est. radius is %f \n" % self.radius
-		# return h1+h2+l1+l2+l3+l4+l5+h1
+		h1 = '<'+'-'*25+'>\n'
+		h2 = "INSTANCE of Curve OBJECT\n"
+		l1 = "	left end at (%i,%i)\n" % (self.pLtail[0],self.pLtail[1])
+		l2 = "	right end at (%i,%i)\n" % (self.pRtail[0],self.pRtail[1])
+		l3 = "	seed at (%i,%i)\n" % (self.pseed[0],self.pseed[1])
+		l4 = "	curvature is %f \n" % round(self.curv,4)
+		l5 = "	tilt is %f \n" % self.tilt
+		return h1+h2+l1+l2+l3+l4+l5+h1
 		pass
 
 	@staticmethod
