@@ -247,7 +247,7 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(61,139),anim=True):
+	def findCurves(self,p_loc=(61,258),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
@@ -319,14 +319,14 @@ class Curve():
 		angle_LSR = np.arccos(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL))
 		q_LtoR = np.linalg.norm(np.subtract(r_rnew,r_lnew))
 		c = 2*np.sin(angle_LSR)/q_LtoR
-		sgn = -np.sign(np.cross(rvec_StoL,rvec_StoR))
-		c_loc = sgn*abs(c)
+		sgn = 1 if np.cross(rvec_StoL,rvec_StoR) >= 0 else -1
+		c_loc = -sgn*c
 
 		#c based on gradients
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
 		th_diff = abs(angleDiff(th_rnew,th_lnew))
-		c_grad = -2*np.sin(th_diff/2.)/q_LtoR
+		c_grad = -sgn*2*np.sin(th_diff/2.)/q_LtoR
 
 		z = np.clip(self.age/4,0,0.5)
 
