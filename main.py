@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from scipy import ndimage
 from skimage import feature
 from skimage import measure
+from skimage import util
+import time
 
 def getIMG(name="circle"):
 	filename = os.path.join(os.getcwd(), "Pics/"+name + ".png")
@@ -179,7 +181,9 @@ class Image():
 		return ret
 
 class Eye():
-	def __init__(self,image):
+	def __init__(self,image,preprocessing=False):
+		if preprocessing:
+			image = gaussianFilter(image)
 		self.image = image
 		self.edges,self.gradients = sobelOp(self.image)
 		self.edges = self.edges/np.amax(self.edges)
@@ -247,12 +251,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(61,258),anim=True):
+	def findCurves(self,p_loc=(219,586),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		for step_num in range(50):
+		for step_num in range(60):
 			if step_num == 0:
 				curve = Curve(p_loc,self)
 			else:
@@ -263,11 +267,13 @@ class Eye():
 			if rcenter is not None:
 				center = self.realToPix(rcenter[0],rcenter[1],rounded=False)
 				center_plt.set_data(center[1],center[0])
+			plt.plot(curve.pLtail[1],curve.pLtail[0],'b.',markersize=1.5)
+			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=1.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % step_num)
-			if anim:
+			if anim and step_num % 10 == 0:
 				plt.draw()
-				plt.pause(0.05)
+				plt.pause(0.005)
 			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
 			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
 			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
@@ -316,7 +322,7 @@ class Curve():
 		q_StoR = np.linalg.norm(rvec_StoR)
 
 		#c based on point locations
-		angle_LSR = np.arccos(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL))
+		angle_LSR = np.arccos(np.clip(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL),1.0,-1.0))
 		q_LtoR = np.linalg.norm(np.subtract(r_rnew,r_lnew))
 		c = 2*np.sin(angle_LSR)/q_LtoR
 		sgn = 1 if np.cross(rvec_StoL,rvec_StoR) >= 0 else -1
@@ -328,7 +334,7 @@ class Curve():
 		th_diff = abs(angleDiff(th_rnew,th_lnew))
 		c_grad = -sgn*2*np.sin(th_diff/2.)/q_LtoR
 
-		z = np.clip(self.age/4,0,0.5)
+		z = np.clip(self.age/4,0,0.01)
 
 		c_new = (z*c_loc+(1-z)*c_grad)
 		return c_new
@@ -338,12 +344,10 @@ class Curve():
 		self.curv += (c_new-self.curv)/(self.age)
 
 	def updateTilt(self,p_lnew,p_rnew):
-		if self.age < 6:
-			#contributions are too small to care after that 
-			th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
-			th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
-			est_tilt = th_lnew + angleDiff(th_rnew,th_lnew)/2
-			self.tilt += (est_tilt-self.tilt)/(self.age)**3
+		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
+		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
+		est_tilt = th_lnew + angleDiff(th_rnew,th_lnew)/2
+		self.tilt += (est_tilt-self.tilt)/(self.age)
 
 	def grow(self):
 		self.age += 1
@@ -473,7 +477,7 @@ def getEdges(img,o):
 	edges = ndimage.convolve(img,k,mode='constant',cval=0.0)
 	return edges
 
-def guassianFilter(img,sigma=1.0):
+def gaussianFilter(img,sigma=1.0):
 	return ndimage.filters.gaussian_filter(img,sigma)
 
 def scharrOp(img):
@@ -728,15 +732,31 @@ def multiEdgeFinder(edges,gradients,grouping=50,n_steps=5):
 		plt.pause(0.2)
 	plt.show()
 
-###################
+def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
+	# mode = "gaussian" => specify mean (m) and var (v)
+	# mode = "s&p" => specify density (d)
+	# mode = "speckle" => specify variance (v)
+	img = getIMG(name=name)[:,:,0]
+	if mode == 'gaussian' or mode == 'speckle':
+		noisy = util.random_noise(img,mode=mode,mean=m,var= v)
+	elif mode == "s&p":
+		noisy = util.random_noise(img,mode=mode,amount=d)
+	else:
+		noisy = img
+	return noisy
+
+
+###################=
 #################
 ##################
 
 if __name__ == "__main__":
-	img = Image('simple_edges2')
-	S_img = img.makeImage(img.HSL[1])
-	eye = Eye(S_img)
+	img = testImage(mode='gaussian',m=0.0,v=0.3)
+	# img = testImage(mode='s&p',d=0.4)
+	# img = testImage(mode='gaussian',m=0.0,v=0.2,name='ellipse')
+	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
+
 
 
 # # resources
