@@ -256,30 +256,59 @@ class Eye():
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		for step_num in range(60):
-			if step_num == 0:
-				curve = Curve(p_loc,self)
-			else:
-				curve.expand()
+		n_iter = 80
+		tilt_err = np.zeros(n_iter)
+		Ld_err = np.zeros(n_iter)
+		Rd_err = np.zeros(n_iter)
+		Lth_err = np.zeros(n_iter)
+		Rth_err = np.zeros(n_iter)
+		th_err = 0
+		curve = Curve(p_loc,self)
+		for step_num in range(n_iter):
+			curve.expand()
 			print(curve)
 			rpath,rcenter = curve.rpath()
 			path = self.realToPixArray(rpath,rounded=False)
 			if rcenter is not None:
 				center = self.realToPix(rcenter[0],rcenter[1],rounded=False)
 				center_plt.set_data(center[1],center[0])
-			plt.plot(curve.pLtail[1],curve.pLtail[0],'b.',markersize=1.5)
-			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=1.5)
+			plt.plot(curve.pLtail[1],curve.pLtail[0],'b.',markersize=2.5)
+			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
 			path_plt.set_data(path[:,1],path[:,0])
-			plt.title("Curve Growth after %i expansions" % step_num)
-			if anim and step_num % 10 == 0:
+			plt.title("Curve Growth after %i expansions" % (step_num+1))
+			if anim and step_num % 6 == 0:
 				plt.draw()
-				plt.pause(0.005)
+				plt.pause(0.01)
+			th_err += 0.5*(0.5*(curve.Lth_err+curve.Rth_err)-th_err)
+			tilt_err[step_num] = th_err
+			Ld_err[step_num] = curve.Ld_err
+			Rd_err[step_num] = curve.Rd_err
+			Lth_err[step_num] = curve.Lth_err
+			Rth_err[step_num] = curve.Rth_err
+			
+			if max(curve.Ld_err,curve.Rd_err) >= 5 or th_err > 0.1:
+				break
 			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
 			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
 			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
 			# for i in range(2):
 			# 	plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
+
+		fig,ax = plt.subplots(2,sharex=True,figsize=(12,8))
+		ax[0].plot(Lth_err,'r-')
+		ax[0].plot(-Rth_err,'b-')
+		ax[0].plot(tilt_err,'g-')
+		ax[0].legend(['left','right','average'])
+		ax[0].grid()
+		ax[0].set_title('Curve Direction Error')
+
+		ax[1].plot(Ld_err,'r-')
+		ax[1].plot(Rd_err,'b-')
+		ax[1].legend(['left','right'])
+		ax[1].grid()
+		ax[1].set_title('New Point Distance Error')
+
 		plt.show()
 
 class Curve():
@@ -290,7 +319,9 @@ class Curve():
 		self.pseed = tuple(pseed)
 		self.pLtail = tuple(pseed)
 		self.pRtail = tuple(pseed)
-		self.length = 0
+
+		self.Ld_err,self.Rd_err,self.Lth_err,self.Rth_err = 0.,0.,0.,0.
+		self.tilt_err = 0
 		self.age = 0
 		self.AOIs = Curve.getAOIs()
 
@@ -347,6 +378,7 @@ class Curve():
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
 		est_tilt = th_lnew + angleDiff(th_rnew,th_lnew)/2
+		self.tilt_err = angleDiff(est_tilt,self.tilt)
 		self.tilt += (est_tilt-self.tilt)/(self.age)
 
 	def grow(self):
@@ -362,10 +394,54 @@ class Curve():
 		lAOI = self.AOIs[Curve.selectAOI(ltail_dir)]
 		p_lnew = self.sampleAOI(self.pLtail,lAOI)
 
+		self.recordError(p_lnew,p_rnew)
+
 		self.updateTilt(p_lnew,p_rnew)
 		self.updateCurv(p_lnew,p_rnew)
 		self.pLtail = p_lnew
 		self.pRtail = p_rnew
+
+	def recordError(self,p_lnew,p_rnew):
+		if abs(self.curv) > 0.0001:
+			radius = abs(1/self.curv)
+		else:
+			radius = np.inf
+
+		vec_StoRTail = np.subtract(p_rnew,self.pseed)
+		rq = np.linalg.norm(vec_StoRTail)
+		vec_StoLTail = np.subtract(p_lnew,self.pseed)
+		lq = np.linalg.norm(vec_StoLTail)
+
+		rThProg = 2*np.arcsin(rq/(2*radius))
+		lThProg = 2*np.arcsin(lq/(2*radius))
+	
+		rGrad_est = self.tilt-rThProg
+		rGrad_new = self.eye.pgradient(p_rnew[0],p_rnew[1])
+		lGrad_est = self.tilt+lThProg
+		lGrad_new = self.eye.pgradient(p_lnew[0],p_lnew[1])
+		self.Lth_err = angleDiff(lGrad_est,lGrad_new)
+		self.Rth_err = angleDiff(rGrad_est,rGrad_new)
+
+		rseed = np.array(self.eye.pixToReal(self.pseed[0],self.pseed[1]))
+		if abs(self.curv) < 0.0001:
+			r_Rest = rseed + rq*np.array((np.cos(self.tilt-np.pi/2),np.sin(self.tilt-np.pi/2)))
+			r_Lest = rseed + lq*np.array((np.cos(self.tilt+np.pi/2),np.sin(self.tilt+np.pi/2)))
+		else:
+			vec_CtoS = -np.array((np.cos(self.tilt),np.sin(self.tilt)))/self.curv
+			rcenter = rseed - vec_CtoS
+			c,s = np.cos(-abs(rThProg)),np.sin(-abs(rThProg))
+			dR_matrix = np.array(((c,-s), (s, c)))
+			r_Rest = np.dot(dR_matrix,vec_CtoS)+rcenter
+
+			c,s = np.cos(abs(lThProg)),np.sin(abs(lThProg))
+			dR_matrix = np.array(((c,-s), (s, c)))
+			r_Lest = np.dot(dR_matrix,vec_CtoS)+rcenter
+
+		p_Rest = self.eye.realToPix(r_Rest[0],r_Rest[1])
+		p_Lest = self.eye.realToPix(r_Lest[0],r_Lest[1])
+		self.Ld_err = np.linalg.norm(np.subtract(p_Lest,p_lnew))
+		self.Rd_err = np.linalg.norm(np.subtract(p_Rest,p_rnew))
+
 
 	def rpath(self):
 		num_points = 20
@@ -645,15 +721,25 @@ def getEdgeKernel(size, orientation):
 			dx = j-c
 			# find projected distances along lines
 			a1 = np.dot(np.array([dx,dy]),vec)
-			a2_vec = np.array([dx,dy]) - a1*vec
-			a1 = abs(a1)
-			a2 = np.sqrt(a2_vec[0]**2+a2_vec[1]**2)
-			val = 2**(-a1)
-			if a2 < 0.5:
-				k[i][j] = 4*val
-				num_pos +=1
-			if 0.5 <= a2 < 1.5:
-				k[i][j] = - 2*val
+			f, axarr = plt.subplots(2, 2)
+			axarr[0, 0].plot(x, y)
+			axarr[0, 0].set_title('Axis [0,0]')
+			axarr[0, 1].scatter(x, y)
+			axarr[0, 1].set_title('Axis [0,1]')
+			axarr[1, 0].plot(x, y ** 2)
+			axarr[1, 0].set_title('Axis [1,0]')
+			axarr[1, 1].scatter(x, y ** 2)
+			axarr[1, 1].set_title('Axis [1,1]')
+			for ax in axarr.flat:
+				a2_vec = np.array([dx,dy]) - a1*vec
+				a1 = abs(a1)
+				a2 = np.sqrt(a2_vec[0]**2+a2_vec[1]**2)
+				val = 2**(-a1)
+				if a2 < 0.5:
+					k[i][j] = 4*val
+					num_pos +=1
+				if 0.5 <= a2 < 1.5:
+					k[i][j] = - 2*val
 
 	total_sum = sum(sum(k))
 	if abs(total_sum) > 0.01:
@@ -746,14 +832,14 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 	return noisy
 
 
-###################=
+###################
 #################
 ##################
 
 if __name__ == "__main__":
-	img = testImage(mode='gaussian',m=0.0,v=0.3)
-	# img = testImage(mode='s&p',d=0.4)
-	# img = testImage(mode='gaussian',m=0.0,v=0.2,name='ellipse')
+	# img = testImage(mode='gaussian',m=0.0,v=0.3)
+	# img = testImage(mode='s&p',d=0.2,name='ellipse')
+	img = testImage(mode='none',m=0.0,v=0.05,name='ellipse')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
