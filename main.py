@@ -239,7 +239,7 @@ class Eye():
 		return PXY
 
 	def see(self,complete=True):
-		plt.figure(figsize=(12,8))
+		plt.figure(figsize=(8,6))
 		# plt.xticks(np.arange(2*self.rxmax+1,step=self.rxmax/2-0.2),
 		# 		[str(-self.rxmax),str(-self.rxmax/2),'0',str(self.rxmax/2),str(self.rxmax)])
 		# plt.yticks(np.arange(2*self.rymax+1,step=self.rymax/2-0.2),
@@ -252,12 +252,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(107,193),anim=True):
+	def findCurves(self,p_loc=(366,176),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 84
+		n_iter = 280
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -265,6 +265,7 @@ class Eye():
 		Rth_err = np.zeros(n_iter)
 		th_err = 0
 		curve = Curve(p_loc,self)
+		# print(curve)
 		for step_num in range(n_iter):
 			curve.expand()
 			
@@ -277,10 +278,10 @@ class Eye():
 			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			if anim and step_num > 75:
+			if anim and step_num % 5 ==0:
 				print(curve)
 				plt.draw()
-				plt.pause(0.25)
+				plt.pause(0.15)
 			th_err += 0.5*(0.5*(curve.Lth_err-curve.Rth_err)-th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
@@ -288,9 +289,13 @@ class Eye():
 			Lth_err[step_num] = curve.Lth_err
 			Rth_err[step_num] = curve.Rth_err
 			
-			if max(curve.Ld_err,curve.Rd_err) >= 3 or th_err > 0.2:
-				print('ended early')
-				break
+			# if max(curve.Ld_err,curve.Rd_err) >= 4:
+			# 	print('tail distance error termination')
+			# 	break
+			# if th_err > 0.2:
+			# 	print('angle error termination')
+			# 	break
+
 			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
 			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
 			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
@@ -298,7 +303,7 @@ class Eye():
 			# 	plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
 
-		fig,ax = plt.subplots(2,sharex=True,figsize=(12,8))
+		fig,ax = plt.subplots(2,sharex=True,figsize=(8,6))
 		ax[0].plot(Lth_err,'r-')
 		ax[0].plot(-Rth_err,'b-')
 		ax[0].plot(tilt_err,'g-')
@@ -365,7 +370,7 @@ class Curve():
 		#c based on gradients
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
-		th_diff = abs(angleDiff(th_rnew,th_lnew))
+		th_diff = angleDiff(th_rnew,th_lnew)%(2*np.pi)
 		c_grad = -sgn*2*np.sin(th_diff/2.)/q_LtoR
 
 		z = np.clip(self.age/4,0,0.01)
@@ -378,10 +383,14 @@ class Curve():
 		self.curv += (c_new-self.curv)/(self.age)
 
 	def updateTilt(self,p_lnew,p_rnew):
-		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])
-		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
-		est_tilt = th_lnew + angleDiff(th_rnew,th_lnew)/2
+		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])%(2*np.pi)
+		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])%(2*np.pi)
+		print(th_rnew)
+		if th_rnew > th_lnew:
+			th_rnew = th_rnew-2*np.pi
+		est_tilt = th_lnew - (th_lnew-th_rnew)/2
 		self.tilt_err = angleDiff(est_tilt,self.tilt)
+		print(th_lnew,th_rnew,est_tilt,self.tilt,self.tilt_err)
 		self.tilt += angleDiff(est_tilt,self.tilt)/(self.age)
 
 	def grow(self):
@@ -432,11 +441,11 @@ class Curve():
 		else:
 			vec_CtoS = -np.array((np.cos(self.tilt),np.sin(self.tilt)))/self.curv
 			rcenter = rseed - vec_CtoS
-			c,s = np.cos(-abs(rThProg)),np.sin(-abs(rThProg))
+			c,s = np.cos(-rThProg),np.sin(-rThProg)
 			dR_matrix = np.array(((c,-s), (s, c)))
 			r_Rest = np.dot(dR_matrix,vec_CtoS)+rcenter
 
-			c,s = np.cos(abs(lThProg)),np.sin(abs(lThProg))
+			c,s = np.cos(lThProg),np.sin(lThProg)
 			dR_matrix = np.array(((c,-s), (s, c)))
 			r_Lest = np.dot(dR_matrix,vec_CtoS)+rcenter
 
@@ -445,9 +454,8 @@ class Curve():
 		self.Ld_err = np.linalg.norm(np.subtract(p_Lest,p_lnew))
 		self.Rd_err = np.linalg.norm(np.subtract(p_Rest,p_rnew))
 
-
 	def rpath(self):
-		num_points = 20
+		num_points = 40
 		rseed = np.array(self.eye.pixToReal(self.pseed[0],self.pseed[1])).astype(float)
 		q = np.linalg.norm(np.subtract(self.pRtail,self.pLtail))
 		if abs(self.curv) < 0.00001:
@@ -504,7 +512,7 @@ class Curve():
 
 	def __str__(self):
 		h1 = '<'+'-'*25+'>\n'
-		h2 = "INSTANCE of Curve OBJECT\n"
+		h2 = "INSTANCE of Curve OBJECT (age %i)\n" % (self.age)
 		l1 = "	left end at (%i,%i)\n" % (self.pLtail[0],self.pLtail[1])
 		l2 = "	right end at (%i,%i)\n" % (self.pRtail[0],self.pRtail[1])
 		l3 = "	seed at (%i,%i)\n" % (self.pseed[0],self.pseed[1])
@@ -704,10 +712,6 @@ def edgeSniffer(edges,grouping=40,style='relative'):
 
 	return indices
 
-def localConnector(curve1,curve2):
-		# when two curves become very close to each other
-		pass
-
 def getEdgeKernel(size, orientation):
 	# size must be odd
 	if size % 2 == 0:
@@ -844,7 +848,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='none',d=0.1,name='circle')
+	img = testImage(mode='none',m=0,v=0.1,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
