@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from scipy import ndimage
+import scipy.misc
 from skimage import feature
 from skimage import measure
 from skimage import util
@@ -251,7 +252,7 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(219,586),anim=True):
+	def findCurves(self,p_loc=(61,90),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
@@ -279,14 +280,14 @@ class Eye():
 			if anim and step_num % 6 == 0:
 				plt.draw()
 				plt.pause(0.01)
-			th_err += 0.5*(0.5*(curve.Lth_err+curve.Rth_err)-th_err)
+			th_err += 0.5*(0.5*(curve.Lth_err-curve.Rth_err)-th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
 			Rd_err[step_num] = curve.Rd_err
 			Lth_err[step_num] = curve.Lth_err
 			Rth_err[step_num] = curve.Rth_err
 			
-			if max(curve.Ld_err,curve.Rd_err) >= 5 or th_err > 0.1:
+			if max(curve.Ld_err,curve.Rd_err) >= 3 or th_err > 0.2:
 				break
 			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
 			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
@@ -832,6 +833,8 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 	return noisy
 
 
+
+
 ###################
 #################
 ##################
@@ -839,7 +842,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='none',m=0.0,v=0.05,name='ellipse')
+	img = testImage(mode='none',d=0.1,name='ball_BW')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
