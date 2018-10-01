@@ -252,12 +252,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(61,90),anim=True):
+	def findCurves(self,p_loc=(107,193),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 80
+		n_iter = 84
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -267,7 +267,7 @@ class Eye():
 		curve = Curve(p_loc,self)
 		for step_num in range(n_iter):
 			curve.expand()
-			print(curve)
+			
 			rpath,rcenter = curve.rpath()
 			path = self.realToPixArray(rpath,rounded=False)
 			if rcenter is not None:
@@ -277,9 +277,10 @@ class Eye():
 			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			if anim and step_num % 6 == 0:
+			if anim and step_num > 75:
+				print(curve)
 				plt.draw()
-				plt.pause(0.01)
+				plt.pause(0.25)
 			th_err += 0.5*(0.5*(curve.Lth_err-curve.Rth_err)-th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
@@ -288,6 +289,7 @@ class Eye():
 			Rth_err[step_num] = curve.Rth_err
 			
 			if max(curve.Ld_err,curve.Rd_err) >= 3 or th_err > 0.2:
+				print('ended early')
 				break
 			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
 			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
@@ -380,7 +382,7 @@ class Curve():
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])
 		est_tilt = th_lnew + angleDiff(th_rnew,th_lnew)/2
 		self.tilt_err = angleDiff(est_tilt,self.tilt)
-		self.tilt += (est_tilt-self.tilt)/(self.age)
+		self.tilt += angleDiff(est_tilt,self.tilt)/(self.age)
 
 	def grow(self):
 		self.age += 1
@@ -842,7 +844,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='none',d=0.1,name='ball_BW')
+	img = testImage(mode='none',d=0.1,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
