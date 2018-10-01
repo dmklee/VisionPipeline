@@ -252,7 +252,7 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(366,176),anim=True):
+	def findCurves(self,p_loc=(314,145),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
