@@ -252,7 +252,7 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(314,145),anim=True):
+	def findCurves(self,p_loc=(96,427),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
@@ -418,7 +418,7 @@ class Curve():
 			radius = abs(1/self.curv)
 		else:
 			radius = np.inf
-
+		sgn = 1 if self.curv >= 0 else -1
 		vec_StoRTail = np.subtract(p_rnew,self.pseed)
 		rq = np.linalg.norm(vec_StoRTail)
 		vec_StoLTail = np.subtract(p_lnew,self.pseed)
@@ -441,11 +441,11 @@ class Curve():
 		else:
 			vec_CtoS = -np.array((np.cos(self.tilt),np.sin(self.tilt)))/self.curv
 			rcenter = rseed - vec_CtoS
-			c,s = np.cos(-rThProg),np.sin(-rThProg)
+			c,s = np.cos(sgn*rThProg),np.sin(sgn*rThProg)
 			dR_matrix = np.array(((c,-s), (s, c)))
 			r_Rest = np.dot(dR_matrix,vec_CtoS)+rcenter
 
-			c,s = np.cos(lThProg),np.sin(lThProg)
+			c,s = np.cos(-sgn*lThProg),np.sin(-sgn*lThProg)
 			dR_matrix = np.array(((c,-s), (s, c)))
 			r_Lest = np.dot(dR_matrix,vec_CtoS)+rcenter
 
