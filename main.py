@@ -252,17 +252,22 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(96,427),anim=True):
+	def findCurves(self,p_loc=(60,315),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 280
+		n_iter = 150
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
 		Lth_err = np.zeros(n_iter)
 		Rth_err = np.zeros(n_iter)
+		R_loc = np.zeros(n_iter)
+		R_grad = np.zeros(n_iter)
+		R_tot = np.zeros(n_iter)
+		Tilt_loc = np.zeros(n_iter)
+		Tilt_grad = np.zeros(n_iter)
 		th_err = 0
 		curve = Curve(p_loc,self)
 		# print(curve)
@@ -278,17 +283,21 @@ class Eye():
 			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			if anim and step_num % 5 ==0:
+			if anim and step_num % 10 ==0:
 				print(curve)
 				plt.draw()
-				plt.pause(0.15)
+				plt.pause(0.015)
 			th_err += 0.5*(0.5*(curve.Lth_err-curve.Rth_err)-th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
 			Rd_err[step_num] = curve.Rd_err
 			Lth_err[step_num] = curve.Lth_err
 			Rth_err[step_num] = curve.Rth_err
-			
+			R_loc[step_num] = abs(1/curve.c_loc) if curve.c_loc != 0 else np.inf
+			R_grad[step_num] = abs(1/curve.c_grad) if curve.c_grad != 0 else np.inf
+			R_tot[step_num] = abs(1/curve.curv) if curve.curv != 0 else np.inf
+			Tilt_loc[step_num] = curve.tilt_loc
+			Tilt_grad[step_num] = curve.tilt_grad
 			# if max(curve.Ld_err,curve.Rd_err) >= 4:
 			# 	print('tail distance error termination')
 			# 	break
@@ -296,14 +305,13 @@ class Eye():
 			# 	print('angle error termination')
 			# 	break
 
-			# new_pts = self.pixToRealArray(np.array((curve.pRtail,curve.pLtail)))
-			# plt.plot(new_pts[:,0],new_pts[:,1],'r*')
+			# new_pts = np.array((curve.pRtail,curve.pLtail))
 			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
 			# for i in range(2):
-			# 	plt.plot([new_pts[i,0],new_pts[i,0]+2*np.cos(thetas[i])],
-			# 			[new_pts[i,1],new_pts[i,1]+2*np.sin(thetas[i])],'k-')
+			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
+			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 
-		fig,ax = plt.subplots(2,sharex=True,figsize=(8,6))
+		fig,ax = plt.subplots(3,sharex=True,figsize=(8,10))
 		ax[0].plot(Lth_err,'r-')
 		ax[0].plot(-Rth_err,'b-')
 		ax[0].plot(tilt_err,'g-')
@@ -317,11 +325,24 @@ class Eye():
 		ax[1].grid()
 		ax[1].set_title('New Point Distance Error')
 
+		ax[2].plot(R_loc,'r-')
+		ax[2].plot(R_grad,'b-')
+		ax[2].plot(R_tot,'g-')
+		ax[2].legend(['location-based','gradient-based','total'],loc=4)
+		ax[2].plot(np.full(n_iter,185.5),'k--')
+		ax[2].grid()
+		ax[2].set_ylim((150,290))
+		ax[2].set_title('Radius of Curvature')
+
 		plt.show()
 
 class Curve():
 	def __init__(self,pseed,eye):
 		self.curv = 0.0
+		self.c_loc = 0
+		self.c_grad=0
+		self.tilt_loc = 0
+		self.tilt_grad = 0
 		self.eye = eye
 		self.tilt = self.eye.pgradient(pseed[0],pseed[1])
 		self.pseed = tuple(pseed)
@@ -361,7 +382,7 @@ class Curve():
 		q_StoR = np.linalg.norm(rvec_StoR)
 
 		#c based on point locations
-		angle_LSR = np.arccos(np.clip(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL),-1.0,1.0))
+		angle_LSR = np.arccos(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL))
 		q_LtoR = np.linalg.norm(np.subtract(r_rnew,r_lnew))
 		c = 2*np.sin(angle_LSR)/q_LtoR
 		sgn = 1 if np.cross(rvec_StoL,rvec_StoR) >= 0 else -1
@@ -373,24 +394,25 @@ class Curve():
 		th_diff = angleDiff(th_rnew,th_lnew)%(2*np.pi)
 		c_grad = -sgn*2*np.sin(th_diff/2.)/q_LtoR
 
-		z = np.clip(self.age/4,0,0.5)
-
+		z = np.clip((self.age/30),0,1.0)
 		c_new = (z*c_loc+(1-z)*c_grad)
+		self.c_loc = c_loc
+		self.c_grad = c_grad
 		return c_new
 
 	def updateCurv(self,p_lnew,p_rnew):
 		c_new = self.getCnew(p_lnew,p_rnew)
-		self.curv += (c_new-self.curv)/(self.age)
+		self.curv += 0.3*(c_new-self.curv)
 
 	def updateTilt(self,p_lnew,p_rnew):
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])%(2*np.pi)
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])%(2*np.pi)
-		print(th_rnew)
+		# print(th_rnew)
 		if th_rnew > th_lnew:
 			th_rnew = th_rnew-2*np.pi
 		est_tilt = th_lnew - (th_lnew-th_rnew)/2
 		self.tilt_err = angleDiff(est_tilt,self.tilt)
-		print(th_lnew,th_rnew,est_tilt,self.tilt,self.tilt_err)
+		# print(th_lnew,th_rnew,est_tilt,self.tilt,self.tilt_err)
 		self.tilt += angleDiff(est_tilt,self.tilt)/(self.age)
 
 	def grow(self):
@@ -549,7 +571,7 @@ class Curve():
 		# direction is an angle
 		direction = direction%(2*np.pi)
 		#now direction is greater than 0
-		index = (direction +np.pi/8)//(np.pi/4)
+		index = (direction + np.pi/8)//(np.pi/4)
 		return int(index)%8
 ##############
 ##############
