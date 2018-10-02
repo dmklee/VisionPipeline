@@ -268,6 +268,7 @@ class Eye():
 		R_tot = np.zeros(n_iter)
 		Tilt_loc = np.zeros(n_iter)
 		Tilt_grad = np.zeros(n_iter)
+		Tilt_tot = np.zeros(n_iter)
 		th_err = 0
 		curve = Curve(p_loc,self)
 		# print(curve)
@@ -298,6 +299,7 @@ class Eye():
 			R_tot[step_num] = abs(1/curve.curv) if curve.curv != 0 else np.inf
 			Tilt_loc[step_num] = curve.tilt_loc
 			Tilt_grad[step_num] = curve.tilt_grad
+			Tilt_tot[step_num] = curve.tilt
 			# if max(curve.Ld_err,curve.Rd_err) >= 4:
 			# 	print('tail distance error termination')
 			# 	break
@@ -311,7 +313,7 @@ class Eye():
 			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 
-		fig,ax = plt.subplots(3,sharex=True,figsize=(8,10))
+		fig,ax = plt.subplots(4,sharex=True,figsize=(8,12))
 		ax[0].plot(Lth_err,'r-')
 		ax[0].plot(-Rth_err,'b-')
 		ax[0].plot(tilt_err,'g-')
@@ -328,12 +330,19 @@ class Eye():
 		ax[2].plot(R_loc,'r-')
 		ax[2].plot(R_grad,'b-')
 		ax[2].plot(R_tot,'g-')
-		ax[2].legend(['location-based','gradient-based','total'],loc=4)
+		ax[2].legend(['location-based','gradient-based','total'],loc=1)
 		ax[2].plot(np.full(n_iter,185.5),'k--')
 		ax[2].grid()
-		ax[2].set_ylim((150,290))
+		ax[2].set_ylim((120,260))
 		ax[2].set_title('Radius of Curvature')
 
+		ax[3].plot(Tilt_loc,'r-')
+		ax[3].plot(Tilt_grad,'b-')
+		ax[3].plot(Tilt_tot,'g-')
+		ax[3].legend(['location-based','gradient-based','total'],loc=4)
+		ax[3].grid()
+		ax[3].set_title('Curve Tilt Approximation')
+		plt.tight_layout()
 		plt.show()
 
 class Curve():
@@ -411,6 +420,18 @@ class Curve():
 		if th_rnew > th_lnew:
 			th_rnew = th_rnew-2*np.pi
 		est_tilt = th_lnew - (th_lnew-th_rnew)/2
+		self.tilt_grad = est_tilt
+
+		r_lnew = self.eye.pixToReal(p_lnew[0],p_lnew[1])
+		r_rnew = self.eye.pixToReal(p_rnew[0],p_rnew[1])
+		r_seed = self.eye.pixToReal(self.pseed[0],self.pseed[1])
+		vec_StoL = np.subtract(r_lnew,r_seed)
+		vec_StoR = np.subtract(r_rnew,r_seed)
+		d = 2.1*max(np.linalg.norm(vec_StoL),np.linalg.norm(vec_StoR))
+		vec_tilt = np.array((d*np.cos(self.tilt),d*np.sin(self.tilt)))
+		vec_est_tilt = vec_StoL+vec_StoR + vec_tilt
+		self.tilt_loc = np.arctan2(vec_est_tilt[1],vec_est_tilt[0])
+
 		self.tilt_err = angleDiff(est_tilt,self.tilt)
 		# print(th_lnew,th_rnew,est_tilt,self.tilt,self.tilt_err)
 		self.tilt += angleDiff(est_tilt,self.tilt)/(self.age)
