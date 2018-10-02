@@ -252,7 +252,7 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(60,315),anim=True):
+	def findCurves(self,p_loc=(136,345),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
@@ -900,7 +900,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='gaussian',m=0,v=0.15,name='circle')
+	img = testImage(mode='gaussian',m=0,v=0.00,name='small_circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
