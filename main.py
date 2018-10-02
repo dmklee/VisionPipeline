@@ -361,7 +361,7 @@ class Curve():
 		q_StoR = np.linalg.norm(rvec_StoR)
 
 		#c based on point locations
-		angle_LSR = np.arccos(np.clip(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL),1.0,-1.0))
+		angle_LSR = np.arccos(np.clip(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL),-1.0,1.0))
 		q_LtoR = np.linalg.norm(np.subtract(r_rnew,r_lnew))
 		c = 2*np.sin(angle_LSR)/q_LtoR
 		sgn = 1 if np.cross(rvec_StoL,rvec_StoR) >= 0 else -1
@@ -373,7 +373,7 @@ class Curve():
 		th_diff = angleDiff(th_rnew,th_lnew)%(2*np.pi)
 		c_grad = -sgn*2*np.sin(th_diff/2.)/q_LtoR
 
-		z = np.clip(self.age/4,0,0.01)
+		z = np.clip(self.age/4,0,0.5)
 
 		c_new = (z*c_loc+(1-z)*c_grad)
 		return c_new
