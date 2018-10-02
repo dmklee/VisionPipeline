@@ -257,7 +257,7 @@ class Eye():
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 150
+		n_iter = 220
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -284,10 +284,10 @@ class Eye():
 			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			if anim and step_num % 10 ==0:
+			if anim and step_num % 20 ==0:
 				print(curve)
 				plt.draw()
-				plt.pause(0.015)
+				plt.pause(0.005)
 			th_err += 0.5*(0.5*(curve.Lth_err-curve.Rth_err)-th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
@@ -313,7 +313,7 @@ class Eye():
 			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 
-		fig,ax = plt.subplots(4,sharex=True,figsize=(8,12))
+		fig,ax = plt.subplots(4,sharex=True,figsize=(8,10))
 		ax[0].plot(Lth_err,'r-')
 		ax[0].plot(-Rth_err,'b-')
 		ax[0].plot(tilt_err,'g-')
@@ -339,9 +339,10 @@ class Eye():
 		ax[3].plot(Tilt_loc,'r-')
 		ax[3].plot(Tilt_grad,'b-')
 		ax[3].plot(Tilt_tot,'g-')
-		ax[3].legend(['location-based','gradient-based','total'],loc=4)
+		ax[3].legend(['location-based','gradient-based','total'],loc=9)
 		ax[3].grid()
 		ax[3].set_title('Curve Tilt Approximation')
+		ax[3].set_ylim((1.54,1.63))
 		plt.tight_layout()
 		plt.show()
 
@@ -413,28 +414,39 @@ class Curve():
 		c_new = self.getCnew(p_lnew,p_rnew)
 		self.curv += 0.3*(c_new-self.curv)
 
-	def updateTilt(self,p_lnew,p_rnew):
+	def getTiltnew(self,p_lnew,p_rnew):
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])%(2*np.pi)
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])%(2*np.pi)
 		# print(th_rnew)
 		if th_rnew > th_lnew:
 			th_rnew = th_rnew-2*np.pi
-		est_tilt = th_lnew - (th_lnew-th_rnew)/2
-		self.tilt_grad = est_tilt
+		tilt_grad = th_lnew - (th_lnew-th_rnew)/2
+		self.tilt_grad = tilt_grad
 
 		r_lnew = self.eye.pixToReal(p_lnew[0],p_lnew[1])
 		r_rnew = self.eye.pixToReal(p_rnew[0],p_rnew[1])
 		r_seed = self.eye.pixToReal(self.pseed[0],self.pseed[1])
 		vec_StoL = np.subtract(r_lnew,r_seed)
 		vec_StoR = np.subtract(r_rnew,r_seed)
-		d = 2.1*max(np.linalg.norm(vec_StoL),np.linalg.norm(vec_StoR))
-		vec_tilt = np.array((d*np.cos(self.tilt),d*np.sin(self.tilt)))
-		vec_est_tilt = vec_StoL+vec_StoR + vec_tilt
-		self.tilt_loc = np.arctan2(vec_est_tilt[1],vec_est_tilt[0])
+		vec_tilt = np.array((np.cos(self.tilt),np.sin(self.tilt)))
+		vec_new = vec_StoR/np.linalg.norm(vec_StoR) \
+					+ vec_StoL/np.linalg.norm(vec_StoL)
+		if np.dot(vec_new,vec_tilt) < 0:
+			vec_new *= -1.0
+		tilt_loc = np.arctan2(vec_new[1],vec_new[0])
 
-		self.tilt_err = angleDiff(est_tilt,self.tilt)
+		z = np.clip(((self.age-8)/10),0,1) #z is the contribution of tilt_loc
+		tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
+		self.tilt_loc = tilt_loc
+		self.tilt_grad = tilt_grad
+		return tilt_new
+
+	def updateTilt(self,p_lnew,p_rnew):
+		tilt_new = self.getTiltnew(p_lnew,p_rnew)
+		self.tilt_err = angleDiff(tilt_new,self.tilt)
 		# print(th_lnew,th_rnew,est_tilt,self.tilt,self.tilt_err)
-		self.tilt += angleDiff(est_tilt,self.tilt)/(self.age)
+		self.tilt += 0.5*angleDiff(tilt_new,self.tilt)
+		self.tilt = self.tilt % (2*np.pi)
 
 	def grow(self):
 		self.age += 1
@@ -881,9 +893,6 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 		noisy = img
 	return noisy
 
-
-
-
 ###################
 #################
 ##################
@@ -891,7 +900,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='none',m=0,v=0.1,name='circle')
+	img = testImage(mode='gaussian',m=0,v=0.15,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
