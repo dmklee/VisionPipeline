@@ -252,7 +252,7 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(366,176),anim=True):
+	def findCurves(self,p_loc=(61,283),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
@@ -355,6 +355,7 @@ class Curve():
 		self.tilt_grad = 0
 		self.eye = eye
 		self.tilt = self.eye.pgradient(pseed[0],pseed[1])
+		pseed = self.relocateSeed(pseed)
 		self.pseed = tuple(pseed)
 		self.pLtail = tuple(pseed)
 		self.pRtail = tuple(pseed)
@@ -363,6 +364,21 @@ class Curve():
 		self.tilt_err = 0
 		self.age = 0
 		self.AOIs = Curve.getAOIs()
+
+	def relocateSeed(self,pseed):
+		# we will check order-2 neighbors for the best edge
+		new_seed = tuple(pseed)
+		best_val = 0
+		for i in np.arange(-2,3):
+			for j in np.arange(-2,3):
+				px,py = i+pseed[0],j+pseed[1]
+				try:
+					if self.eye.edgeP(px,py) > best_val:
+						best_val = self.eye.edgeP(px,py)
+						new_seed = px,py
+				except IndexError:
+					pass
+		return new_seed
 
 	def expand(self):
 		self.grow()
@@ -392,7 +408,7 @@ class Curve():
 		q_StoR = np.linalg.norm(rvec_StoR)
 
 		#c based on point locations
-		angle_LSR = np.arccos(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL))
+		angle_LSR = np.arccos(np.clip(np.dot(rvec_StoL,rvec_StoR)/(q_StoR*q_StoL),-1.0,1.0))
 		q_LtoR = np.linalg.norm(np.subtract(r_rnew,r_lnew))
 		c = 2*np.sin(angle_LSR)/q_LtoR
 		sgn = 1 if np.cross(rvec_StoL,rvec_StoR) >= 0 else -1
@@ -899,7 +915,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='gaussian',m=0,v=0.01,name='circle')
+	img = testImage(mode='gaussian',m=0,v=0.00,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
