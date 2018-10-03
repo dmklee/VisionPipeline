@@ -252,12 +252,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(60,315),anim=True):
+	def findCurves(self,p_loc=(378,444),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 240
+		n_iter = 260
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -342,7 +342,7 @@ class Eye():
 		ax[3].legend(['location-based','gradient-based','total'],loc=9)
 		ax[3].grid()
 		ax[3].set_title('Curve Tilt Approximation')
-		ax[3].set_ylim((1.54,1.63))
+		# ax[3].set_ylim((1.54,1.63))
 		plt.tight_layout()
 		plt.show()
 
@@ -433,11 +433,10 @@ class Curve():
 	def getTiltnew(self,p_lnew,p_rnew):
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])%(2*np.pi)
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])%(2*np.pi)
-		# print(th_rnew)
+		
 		if th_rnew > th_lnew:
 			th_rnew = th_rnew-2*np.pi
 		tilt_grad = th_lnew - (th_lnew-th_rnew)/2
-		self.tilt_grad = tilt_grad
 
 		r_lnew = self.eye.pixToReal(p_lnew[0],p_lnew[1])
 		r_rnew = self.eye.pixToReal(p_rnew[0],p_rnew[1])
@@ -453,8 +452,8 @@ class Curve():
 
 		z = np.clip(((self.age-8)/10),0,1) #z is the contribution of tilt_loc
 		tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
-		self.tilt_loc = tilt_loc
-		self.tilt_grad = tilt_grad
+		self.tilt_loc = tilt_loc%(2*np.pi)
+		self.tilt_grad = tilt_grad%(2*np.pi)
 		return tilt_new
 
 	def updateTilt(self,p_lnew,p_rnew):
@@ -686,12 +685,6 @@ def sobelOp(img):
 def canny(img):
 	# header
 	return feature.canny(img,sigma=3)
-
-def smoothImage(img):
-	# kernel = np.array([[1.0,2.0,1.0], [2.0,4.0,2.0], [1.0,2.0,1.0]])
-	# kernel = kernel / np.sum(kernel)
-	# smoothed = ndimage.convolve(img,kernel,mode='constant',cval=0.0)
-	return img
 
 def smoothCurves(img, kernels=None,ksize=5,sigma=3):
 	if kernels is None:
@@ -934,7 +927,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='s&p',d=0.0,name='circle')
+	img = testImage(mode='gaussian',v=0.00,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
