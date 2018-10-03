@@ -252,12 +252,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(61,283),anim=True):
+	def findCurves(self,p_loc=(60,315),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 280
+		n_iter = 240
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -288,7 +288,7 @@ class Eye():
 				print(curve)
 				plt.draw()
 				plt.pause(0.005)
-			th_err += 0.5*(0.5*(curve.Lth_err-curve.Rth_err)-th_err)
+			th_err += 0.2*((curve.Lth_err-curve.Rth_err)/2. - th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
 			Rd_err[step_num] = curve.Rd_err
@@ -467,13 +467,32 @@ class Curve():
 	def grow(self):
 		self.age += 1
 
+		if abs(self.curv) > 0.0001:
+			radius = abs(1/self.curv)
+		else:
+			radius = np.inf
+		if self.age > 1:
+			vec_StoRTail = np.subtract(self.pRtail,self.pseed)
+			rq = np.linalg.norm(vec_StoRTail)
+			vec_StoLTail = np.subtract(self.pLtail,self.pseed)
+			lq = np.linalg.norm(vec_StoLTail)
+			rThProg = 2*np.arcsin(rq/(2*radius))
+			lThProg = 2*np.arcsin(lq/(2*radius))
+			rGrad_est = self.tilt-rThProg
+			lGrad_est = self.tilt+lThProg
+		else:
+			rGrad_est = self.eye.pgradient(self.pseed[0],self.pseed[1])
+			lGrad_est = rGrad_est
+
 		# right side
-		rtail_dir = self.eye.pgradient(self.pRtail[0],self.pRtail[1])-np.pi/2.
+		# rtail_dir = self.eye.pgradient(self.pRtail[0],self.pRtail[1])-np.pi/2.
+		rtail_dir = rGrad_est - np.pi/2.
 		rAOI = self.AOIs[Curve.selectAOI(rtail_dir)]
 		p_rnew = self.sampleAOI(self.pRtail,rAOI)
 
 		#leftside
-		ltail_dir = self.eye.pgradient(self.pLtail[0],self.pLtail[1])+np.pi/2.
+		# ltail_dir = self.eye.pgradient(self.pLtail[0],self.pLtail[1])+np.pi/2.
+		ltail_dir = lGrad_est + np.pi/2.
 		lAOI = self.AOIs[Curve.selectAOI(ltail_dir)]
 		p_lnew = self.sampleAOI(self.pLtail,lAOI)
 
@@ -526,7 +545,7 @@ class Curve():
 		self.Rd_err = np.linalg.norm(np.subtract(p_Rest,p_rnew))
 
 	def rpath(self):
-		num_points = 40
+		num_points = 60
 		rseed = np.array(self.eye.pixToReal(self.pseed[0],self.pseed[1])).astype(float)
 		q = np.linalg.norm(np.subtract(self.pRtail,self.pLtail))
 		if abs(self.curv) < 0.00001:
@@ -915,7 +934,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='gaussian',m=0,v=0.00,name='circle')
+	img = testImage(mode='s&p',d=0.0,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
