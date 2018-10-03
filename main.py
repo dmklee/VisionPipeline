@@ -252,12 +252,12 @@ class Eye():
 		if complete:
 			plt.show()			
 
-	def findCurves(self,p_loc=(136,345),anim=True):
+	def findCurves(self,p_loc=(366,176),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-')
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 220
+		n_iter = 280
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -284,7 +284,7 @@ class Eye():
 			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			if anim and step_num % 20 ==0:
+			if anim and step_num % 50 ==0:
 				print(curve)
 				plt.draw()
 				plt.pause(0.005)
@@ -313,10 +313,10 @@ class Eye():
 			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 
-		fig,ax = plt.subplots(4,sharex=True,figsize=(8,10))
-		ax[0].plot(Lth_err,'r-')
-		ax[0].plot(-Rth_err,'b-')
-		ax[0].plot(tilt_err,'g-')
+		fig,ax = plt.subplots(4,sharex=True,figsize=(6,8))
+		ax[0].plot(Lth_err,'r-',linewidth=0.5,alpha=0.5)
+		ax[0].plot(-Rth_err,'b-',linewidth=0.5,alpha=0.5)
+		ax[0].plot(tilt_err,'g-',linewidth=2.0)
 		ax[0].legend(['left','right','average'])
 		ax[0].grid()
 		ax[0].set_title('Curve Direction Error')
@@ -327,18 +327,18 @@ class Eye():
 		ax[1].grid()
 		ax[1].set_title('New Point Distance Error')
 
-		ax[2].plot(R_loc,'r-')
-		ax[2].plot(R_grad,'b-')
-		ax[2].plot(R_tot,'g-')
+		ax[2].plot(R_loc,'r-',linewidth=0.5,alpha=0.5)
+		ax[2].plot(R_grad,'b-',linewidth=0.5,alpha=0.5)
+		ax[2].plot(R_tot,'g-',linewidth=2.0)
 		ax[2].legend(['location-based','gradient-based','total'],loc=1)
-		ax[2].plot(np.full(n_iter,185.5),'k--')
+		ax[2].plot(np.full(n_iter,185.5),'k:',alpha=0.5)
 		ax[2].grid()
 		ax[2].set_ylim((120,260))
 		ax[2].set_title('Radius of Curvature')
 
-		ax[3].plot(Tilt_loc,'r-')
-		ax[3].plot(Tilt_grad,'b-')
-		ax[3].plot(Tilt_tot,'g-')
+		ax[3].plot(Tilt_loc,'r-',linewidth=0.5,alpha=0.5)
+		ax[3].plot(Tilt_grad,'b-',linewidth=0.5,alpha=0.5)
+		ax[3].plot(Tilt_tot,'g-',linewidth=2.0)
 		ax[3].legend(['location-based','gradient-based','total'],loc=9)
 		ax[3].grid()
 		ax[3].set_title('Curve Tilt Approximation')
@@ -562,7 +562,6 @@ class Curve():
 		best_id = np.argmax(sample)
 		best_i = best_id//sample.shape[1] + ci-min(ci,AOI_radius)
 		best_j = best_id % sample.shape[1] + cj-min(cj,AOI_radius)
-		rating = 0 # will implement this later
 		return best_i,best_j
 
 	def __str__(self):
@@ -900,7 +899,7 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='gaussian',m=0,v=0.00,name='small_circle')
+	img = testImage(mode='gaussian',m=0,v=0.01,name='circle')
 	eye = Eye(img,preprocessing=True)
 	eye.findCurves()
 
