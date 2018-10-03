@@ -255,9 +255,9 @@ class Eye():
 	def findCurves(self,p_loc=(378,444),anim=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
-		path_plt, = plt.plot([],[],'r-')
+		path_plt, = plt.plot([],[],'r-',linewidth=2.5)
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 260
+		n_iter = 300
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -280,14 +280,15 @@ class Eye():
 			if rcenter is not None:
 				center = self.realToPix(rcenter[0],rcenter[1],rounded=False)
 				center_plt.set_data(center[1],center[0])
-			plt.plot(curve.pLtail[1],curve.pLtail[0],'b.',markersize=2.5)
-			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5)
+			plt.plot(curve.pLtail[1],curve.pLtail[0],'b.',markersize=2.5,alpha = 0.5)
+			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5,alpha=0.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			if anim and step_num % 50 ==0:
-				print(curve)
-				plt.draw()
-				plt.pause(0.005)
+			print(curve)
+			# if anim and step_num % 500 == 0:
+			# 	print(curve)
+			# 	plt.draw()
+			# 	plt.pause(0.0005)
 			th_err += 0.2*((curve.Lth_err-curve.Rth_err)/2. - th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
@@ -313,37 +314,37 @@ class Eye():
 			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 
-		fig,ax = plt.subplots(4,sharex=True,figsize=(6,8))
-		ax[0].plot(Lth_err,'r-',linewidth=0.5,alpha=0.5)
-		ax[0].plot(-Rth_err,'b-',linewidth=0.5,alpha=0.5)
-		ax[0].plot(tilt_err,'g-',linewidth=2.0)
-		ax[0].legend(['left','right','average'])
-		ax[0].grid()
-		ax[0].set_title('Curve Direction Error')
+		# fig,ax = plt.subplots(4,sharex=True,figsize=(6,8))
+		# ax[0].plot(Lth_err,'r-',linewidth=0.5,alpha=0.5)
+		# ax[0].plot(-Rth_err,'b-',linewidth=0.5,alpha=0.5)
+		# ax[0].plot(tilt_err,'g-',linewidth=2.0)
+		# ax[0].legend(['left','right','average'])
+		# ax[0].grid()
+		# ax[0].set_title('Curve Direction Error')
 
-		ax[1].plot(Ld_err,'r-')
-		ax[1].plot(Rd_err,'b-')
-		ax[1].legend(['left','right'])
-		ax[1].grid()
-		ax[1].set_title('New Point Distance Error')
+		# ax[1].plot(Ld_err,'r-')
+		# ax[1].plot(Rd_err,'b-')
+		# ax[1].legend(['left','right'])
+		# ax[1].grid()
+		# ax[1].set_title('New Point Distance Error')
 
-		ax[2].plot(R_loc,'r-',linewidth=0.5,alpha=0.5)
-		ax[2].plot(R_grad,'b-',linewidth=0.5,alpha=0.5)
-		ax[2].plot(R_tot,'g-',linewidth=2.0)
-		ax[2].legend(['location-based','gradient-based','total'],loc=1)
-		ax[2].plot(np.full(n_iter,185.5),'k:',alpha=0.5)
-		ax[2].grid()
-		ax[2].set_ylim((120,260))
-		ax[2].set_title('Radius of Curvature')
+		# ax[2].plot(R_loc,'r-',linewidth=0.5,alpha=0.5)
+		# ax[2].plot(R_grad,'b-',linewidth=0.5,alpha=0.5)
+		# ax[2].plot(R_tot,'g-',linewidth=2.0)
+		# ax[2].legend(['location-based','gradient-based','total'],loc=1)
+		# ax[2].plot(np.full(n_iter,185.5),'k:',alpha=0.5)
+		# ax[2].grid()
+		# ax[2].set_ylim((120,260))
+		# ax[2].set_title('Radius of Curvature')
 
-		ax[3].plot(Tilt_loc,'r-',linewidth=0.5,alpha=0.5)
-		ax[3].plot(Tilt_grad,'b-',linewidth=0.5,alpha=0.5)
-		ax[3].plot(Tilt_tot,'g-',linewidth=2.0)
-		ax[3].legend(['location-based','gradient-based','total'],loc=9)
-		ax[3].grid()
-		ax[3].set_title('Curve Tilt Approximation')
-		# ax[3].set_ylim((1.54,1.63))
-		plt.tight_layout()
+		# ax[3].plot(Tilt_loc,'r-',linewidth=0.5,alpha=0.5)
+		# ax[3].plot(Tilt_grad,'b-',linewidth=0.5,alpha=0.5)
+		# ax[3].plot(Tilt_tot,'g-',linewidth=2.0)
+		# ax[3].legend(['location-based','gradient-based','total'],loc=9)
+		# ax[3].grid()
+		# ax[3].set_title('Curve Tilt Approximation')
+		# # ax[3].set_ylim((1.54,1.63))
+		# plt.tight_layout()
 		plt.show()
 
 class Curve():
@@ -365,6 +366,8 @@ class Curve():
 		self.age = 0
 		self.AOIs = Curve.getAOIs()
 
+		self.status = 'growing' #{'growing','closed'}
+
 	def relocateSeed(self,pseed):
 		# we will check order-2 neighbors for the best edge
 		new_seed = tuple(pseed)
@@ -381,6 +384,8 @@ class Curve():
 		return new_seed
 
 	def expand(self):
+		if self.status != 'growing':
+			return
 		self.grow()
 
 	def getSideInfo(self,side_desc):
@@ -475,10 +480,12 @@ class Curve():
 			rq = np.linalg.norm(vec_StoRTail)
 			vec_StoLTail = np.subtract(self.pLtail,self.pseed)
 			lq = np.linalg.norm(vec_StoLTail)
-			rThProg = 2*np.arcsin(rq/(2*radius))
-			lThProg = 2*np.arcsin(lq/(2*radius))
+			rThProg = 2*np.arcsin(np.clip(rq/(2*radius),-1.0,1.0))
+			lThProg = 2*np.arcsin(np.clip(lq/(2*radius),-1.0,1.0))
 			rGrad_est = self.tilt-rThProg
 			lGrad_est = self.tilt+lThProg
+			if rThProg+lThProg > 2*np.pi-(20.0/radius):
+				self.status = 'closed'
 		else:
 			rGrad_est = self.eye.pgradient(self.pseed[0],self.pseed[1])
 			lGrad_est = rGrad_est
@@ -513,8 +520,8 @@ class Curve():
 		vec_StoLTail = np.subtract(p_lnew,self.pseed)
 		lq = np.linalg.norm(vec_StoLTail)
 
-		rThProg = 2*np.arcsin(rq/(2*radius))
-		lThProg = 2*np.arcsin(lq/(2*radius))
+		rThProg = 2*np.arcsin(np.clip(rq/(2*radius),-1.0,1.0))
+		lThProg = 2*np.arcsin(np.clip(lq/(2*radius),-1.0,1.0))
 	
 		rGrad_est = self.tilt-rThProg
 		rGrad_new = self.eye.pgradient(p_rnew[0],p_rnew[1])
@@ -559,10 +566,12 @@ class Curve():
 		holding_vec = rseed - rcenter
 		vec_StoRTail = np.subtract(self.pRtail,self.pseed)
 		rq = np.linalg.norm(vec_StoRTail)
-		rThProg = 2*np.arcsin(rq/(2*radius))
+		
 		vec_StoLTail = np.subtract(self.pLtail,self.pseed)
 		lq = np.linalg.norm(vec_StoLTail)
-		lThProg = 2*np.arcsin(lq/(2*radius))
+		
+		rThProg = 2*np.arcsin(np.clip(rq/(2*radius),-1.0,1.0))
+		lThProg = 2*np.arcsin(np.clip(lq/(2*radius),-1.0,1.0))
 
 		c,s = np.cos(-abs(rThProg)),np.sin(-abs(rThProg))
 		dR_matrix = np.array(((c,-s), (s, c)))
@@ -600,7 +609,7 @@ class Curve():
 
 	def __str__(self):
 		h1 = '<'+'-'*25+'>\n'
-		h2 = "INSTANCE of Curve OBJECT (age %i)\n" % (self.age)
+		h2 = "Curve Object that is %s (age %i)\n" % (self.status,self.age)
 		l1 = "	left end at (%i,%i)\n" % (self.pLtail[0],self.pLtail[1])
 		l2 = "	right end at (%i,%i)\n" % (self.pRtail[0],self.pRtail[1])
 		l3 = "	seed at (%i,%i)\n" % (self.pseed[0],self.pseed[1])
