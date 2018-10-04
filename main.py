@@ -4,7 +4,7 @@
 #
 #
 import os
-import numpy as np 
+import numpy as np
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from scipy import ndimage
@@ -15,7 +15,7 @@ from skimage import util
 import time
 
 def getIMG(name="circle"):
-	filename = os.path.join(os.getcwd(), "Pics/"+name + ".png")
+	filename = os.path.join(os.getcwd(), "Pics/"+name)
 	img = mpimg.imread(filename)
 	return img
 
@@ -227,7 +227,7 @@ class Eye():
 		if rounded:
 			dtype = int
 		else:
-			dtype = float 
+			dtype = float
 		px = dtype(self.origin[0]-ry)
 		py = dtype(rx+self.origin[1])
 		return px,py
@@ -250,14 +250,13 @@ class Eye():
 		plt.autoscale(False)
 		plt.tight_layout()
 		if complete:
-			plt.show()			
+			plt.show()
 
-	def findCurves(self,p_loc=(378,444),anim=True):
+	def growCurve(self,p_loc=(378,444),anim=True,n_iter=20,show_data=True):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-',linewidth=2.5)
 		center_plt, = plt.plot([],[],'g.')
-		n_iter = 300
 		tilt_err = np.zeros(n_iter)
 		Ld_err = np.zeros(n_iter)
 		Rd_err = np.zeros(n_iter)
@@ -274,7 +273,7 @@ class Eye():
 		# print(curve)
 		for step_num in range(n_iter):
 			curve.expand()
-			
+
 			rpath,rcenter = curve.rpath()
 			path = self.realToPixArray(rpath,rounded=False)
 			if rcenter is not None:
@@ -313,39 +312,48 @@ class Eye():
 			# for i in range(2):
 			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
 			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
+		if show_data:
+			fig,ax = plt.subplots(4,sharex=True,figsize=(6,8))
+			ax[0].plot(Lth_err,'r-',linewidth=0.5,alpha=0.5)
+			ax[0].plot(-Rth_err,'b-',linewidth=0.5,alpha=0.5)
+			ax[0].plot(tilt_err,'g-',linewidth=2.0)
+			ax[0].legend(['left','right','average'])
+			ax[0].grid()
+			ax[0].set_title('Curve Direction Error')
 
-		# fig,ax = plt.subplots(4,sharex=True,figsize=(6,8))
-		# ax[0].plot(Lth_err,'r-',linewidth=0.5,alpha=0.5)
-		# ax[0].plot(-Rth_err,'b-',linewidth=0.5,alpha=0.5)
-		# ax[0].plot(tilt_err,'g-',linewidth=2.0)
-		# ax[0].legend(['left','right','average'])
-		# ax[0].grid()
-		# ax[0].set_title('Curve Direction Error')
+			ax[1].plot(Ld_err,'r-')
+			ax[1].plot(Rd_err,'b-')
+			ax[1].legend(['left','right'])
+			ax[1].grid()
+			ax[1].set_title('New Point Distance Error')
 
-		# ax[1].plot(Ld_err,'r-')
-		# ax[1].plot(Rd_err,'b-')
-		# ax[1].legend(['left','right'])
-		# ax[1].grid()
-		# ax[1].set_title('New Point Distance Error')
+			ax[2].plot(R_loc,'r-',linewidth=0.5,alpha=0.5)
+			ax[2].plot(R_grad,'b-',linewidth=0.5,alpha=0.5)
+			ax[2].plot(R_tot,'g-',linewidth=2.0)
+			ax[2].legend(['location-based','gradient-based','total'],loc=1)
+			ax[2].plot(np.full(n_iter,185.5),'k:',alpha=0.5)
+			ax[2].grid()
+			ax[2].set_ylim((120,260))
+			ax[2].set_title('Radius of Curvature')
 
-		# ax[2].plot(R_loc,'r-',linewidth=0.5,alpha=0.5)
-		# ax[2].plot(R_grad,'b-',linewidth=0.5,alpha=0.5)
-		# ax[2].plot(R_tot,'g-',linewidth=2.0)
-		# ax[2].legend(['location-based','gradient-based','total'],loc=1)
-		# ax[2].plot(np.full(n_iter,185.5),'k:',alpha=0.5)
-		# ax[2].grid()
-		# ax[2].set_ylim((120,260))
-		# ax[2].set_title('Radius of Curvature')
-
-		# ax[3].plot(Tilt_loc,'r-',linewidth=0.5,alpha=0.5)
-		# ax[3].plot(Tilt_grad,'b-',linewidth=0.5,alpha=0.5)
-		# ax[3].plot(Tilt_tot,'g-',linewidth=2.0)
-		# ax[3].legend(['location-based','gradient-based','total'],loc=9)
-		# ax[3].grid()
-		# ax[3].set_title('Curve Tilt Approximation')
-		# # ax[3].set_ylim((1.54,1.63))
-		# plt.tight_layout()
+			ax[3].plot(Tilt_loc,'r-',linewidth=0.5,alpha=0.5)
+			ax[3].plot(Tilt_grad,'b-',linewidth=0.5,alpha=0.5)
+			ax[3].plot(Tilt_tot,'g-',linewidth=2.0)
+			ax[3].legend(['location-based','gradient-based','total'],loc=9)
+			ax[3].grid()
+			ax[3].set_title('Curve Tilt Approximation')
+			# ax[3].set_ylim((1.54,1.63))
+			plt.tight_layout()
 		plt.show()
+
+	def findCurves(self):
+		# find seeds
+		pseeds = edgeSniffer(self.edges,grouping=30,style='absolute')
+		print(pseeds.shape)
+		eye.see(False)
+		plt.plot(pseeds[:,1],pseeds[:,0],'r.')
+		plt.show()
+
 
 class Curve():
 	def __init__(self,pseed,eye):
@@ -438,7 +446,7 @@ class Curve():
 	def getTiltnew(self,p_lnew,p_rnew):
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])%(2*np.pi)
 		th_rnew = self.eye.pgradient(p_rnew[0],p_rnew[1])%(2*np.pi)
-		
+
 		if th_rnew > th_lnew:
 			th_rnew = th_rnew-2*np.pi
 		tilt_grad = th_lnew - (th_lnew-th_rnew)/2
@@ -522,7 +530,7 @@ class Curve():
 
 		rThProg = 2*np.arcsin(np.clip(rq/(2*radius),-1.0,1.0))
 		lThProg = 2*np.arcsin(np.clip(lq/(2*radius),-1.0,1.0))
-	
+
 		rGrad_est = self.tilt-rThProg
 		rGrad_new = self.eye.pgradient(p_rnew[0],p_rnew[1])
 		lGrad_est = self.tilt+lThProg
@@ -566,10 +574,10 @@ class Curve():
 		holding_vec = rseed - rcenter
 		vec_StoRTail = np.subtract(self.pRtail,self.pseed)
 		rq = np.linalg.norm(vec_StoRTail)
-		
+
 		vec_StoLTail = np.subtract(self.pLtail,self.pseed)
 		lq = np.linalg.norm(vec_StoLTail)
-		
+
 		rThProg = 2*np.arcsin(np.clip(rq/(2*radius),-1.0,1.0))
 		lThProg = 2*np.arcsin(np.clip(lq/(2*radius),-1.0,1.0))
 
@@ -638,7 +646,7 @@ class Curve():
 			else:
 				AOIs[i] = corner[:,:]
 				corner = np.rot90(corner)
-		return AOIs	
+		return AOIs
 
 	@staticmethod
 	def selectAOI(direction):
@@ -652,7 +660,7 @@ class Curve():
 ##############
 #
 #	FILTERS
-# 
+#
 #############
 #############
 
@@ -736,7 +744,7 @@ def watershedSeg(img,nsteps,scope=1):
 					try: #to get gradient
 						grad = img[i,j]-img[(i+di),(j+dj)]
 						grad_neighbors[n_id] = grad
-						if grad > 0: 
+						if grad > 0:
 							sum_grad += grad
 					except IndexError:
 						grad_neighbors[n_id] = 0.0
@@ -765,7 +773,7 @@ def angleDiff(new,old):
 def edgeSniffer(edges,grouping=40,style='relative'):
 	#take an image of edge likelihoods
 	# finds the best edge candidate in a section of grouping^2 pixels
-	# returns a list of indices 
+	# returns a list of indices
 	w,h = edges.shape
 	dividend = h//grouping
 	remainder = h%grouping
@@ -792,14 +800,14 @@ def edgeSniffer(edges,grouping=40,style='relative'):
 			else:
 				argmaxes[i] = 0
 			maxes[i] = s[argmaxes[i]]
-	
+
 	offsets = np.arange(argmaxes.size)
 	indices = np.empty((a,2),dtype=int)
 	indices[:,0] = g*(offsets[:]//(h//g)) + argmaxes[:]//g
 	indices[:,1] = g*(offsets[:]%(h//g)) + argmaxes[:]%g
 
 	#could use thresholding in the future
-	indices = indices[np.where(maxes > 0.2)]
+	indices = indices[np.where(maxes > 0.05)]
 
 	return indices
 
@@ -808,7 +816,7 @@ def getEdgeKernel(size, orientation):
 	if size % 2 == 0:
 		size += 1
 
-	c = size//2 
+	c = size//2
 	k = np.zeros((size,size))
 	vec = np.array([np.cos(orientation*np.pi/8),
 					 np.sin(orientation*np.pi/8)])
@@ -848,13 +856,13 @@ def getEdgeKernel(size, orientation):
 	return k
 
 def singleEdgeFinder(loc,edges,gradients,stepwise=True,verbose=True):
-	# edges is an image array, lowerbnd of 0, 
+	# edges is an image array, lowerbnd of 0,
 	# higher number is more likely to be an edge
 	w,h = edges.shape
 	max_i,max_j = loc
 	rgba = plt.cm.gray(edges/np.amax(edges))
 	rgba[max_i,max_j] = 1,0,0,1
-	
+
 	seed = max_i,max_j
 	lseed = seed[:]
 	rseed = seed[:]
@@ -936,8 +944,9 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='gaussian',v=0.00,name='circle')
-	eye = Eye(img,preprocessing=True)
+	img = testImage(mode='gaussian',v=0.00,name='ball_BW.png')
+	eye = Eye(img,preprocessing=False)
+	# eye.growCurve(p_loc=(1515,1297),n_iter=10,show_data=True)
 	eye.findCurves()
 
 
@@ -955,13 +964,13 @@ if __name__ == "__main__":
 # try applying v_est during AOI selection, to allow the curve to 'jump over' poor data
 
 # implement an energy for each tail.  use bayes: we have the value Edges(x,y) of 'energy'
-#		added to a tail when it absorbs a new point, and the proportion of 'energy' 
+#		added to a tail when it absorbs a new point, and the proportion of 'energy'
 #		available to the tail is proportional to the difference between the direction
 #		of the tail (using v_est) and the direction of the new point (using v_new)
 # create a way to visualize the energy throughout the curve
 # allow the curves to overextend but then shrink back when it realizes it has gone too far
 # 		without discovering any new energy
-# pair up 
+# pair up
 # the left and right tails should share the 'energy' in some manner while maintaining knowledge
 #		of their contributions, if they are being fed then they should be less likely to take a
 #		risk in extending themselves
@@ -978,7 +987,7 @@ The curve representation:
 
 
 
-""" 
+"""
 lets break it down into problems, then find an order, and then a plan
 
 Task 1. We need to create a map(s) of edge likelihood (and maybe a gradient field)
@@ -1000,9 +1009,9 @@ Task 8. We need a way to determine if a corner exists
 
 Task 9. We need to be able to join curves into a shape
 
-Task 10. We need a way to determine what light channels are important (conditional on 
+Task 10. We need a way to determine what light channels are important (conditional on
 		macro-data of the image?) and how to combine knowledge from multiple channels
 
-Task 11. We need a coordinate system that is more reliable (takes into account image size, 
+Task 11. We need a coordinate system that is more reliable (takes into account image size,
 		focal length, etc)
 """
