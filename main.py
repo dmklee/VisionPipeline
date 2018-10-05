@@ -252,7 +252,8 @@ class Eye():
 		if complete:
 			plt.show()
 
-	def growCurve(self,p_loc=(378,444),anim=True,n_iter=20,show_data=True):
+	def growCurve(self,p_loc=(378,444),anim=True,n_iter=20,show_data=True,
+					see_gradients=False):
 		self.see(False)
 		plt.plot(p_loc[1],p_loc[0],'r*')
 		path_plt, = plt.plot([],[],'r-',linewidth=2.5)
@@ -270,9 +271,10 @@ class Eye():
 		Tilt_tot = np.zeros(n_iter)
 		th_err = 0
 		curve = Curve(p_loc,self)
-		# print(curve)
 		for step_num in range(n_iter):
 			curve.expand()
+			if curve.status != "growing":
+				break
 
 			rpath,rcenter = curve.rpath()
 			path = self.realToPixArray(rpath,rounded=False)
@@ -283,11 +285,10 @@ class Eye():
 			plt.plot(curve.pRtail[1],curve.pRtail[0],'b.',markersize=2.5,alpha=0.5)
 			path_plt.set_data(path[:,1],path[:,0])
 			plt.title("Curve Growth after %i expansions" % (step_num+1))
-			print(curve)
-			# if anim and step_num % 500 == 0:
+			if anim and step_num % 1 == 0:
 			# 	print(curve)
-			# 	plt.draw()
-			# 	plt.pause(0.0005)
+				plt.draw()
+				plt.pause(0.015)
 			th_err += 0.2*((curve.Lth_err-curve.Rth_err)/2. - th_err)
 			tilt_err[step_num] = th_err
 			Ld_err[step_num] = curve.Ld_err
@@ -306,39 +307,40 @@ class Eye():
 			# if th_err > 0.2:
 			# 	print('angle error termination')
 			# 	break
+			if see_gradients:
+				new_pts = np.array((curve.pRtail,curve.pLtail))
+				thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
+				for i in range(2):
+					plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
+							[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 
-			# new_pts = np.array((curve.pRtail,curve.pLtail))
-			# thetas = self.Pgradient(np.array((curve.pRtail,curve.pLtail)))
-			# for i in range(2):
-			# 	plt.plot([new_pts[i,1],new_pts[i,1]+2*np.cos(thetas[i])],
-			# 			[new_pts[i,0],new_pts[i,0]-2*np.sin(thetas[i])],'r-')
 		if show_data:
 			fig,ax = plt.subplots(4,sharex=True,figsize=(6,8))
-			ax[0].plot(Lth_err,'r-',linewidth=0.5,alpha=0.5)
-			ax[0].plot(-Rth_err,'b-',linewidth=0.5,alpha=0.5)
-			ax[0].plot(tilt_err,'g-',linewidth=2.0)
+			ax[0].plot(Lth_err[:step_num],'r-',linewidth=0.5,alpha=0.5)
+			ax[0].plot(-Rth_err[:step_num],'b-',linewidth=0.5,alpha=0.5)
+			ax[0].plot(tilt_err[:step_num],'g-',linewidth=2.0)
 			ax[0].legend(['left','right','average'])
 			ax[0].grid()
 			ax[0].set_title('Curve Direction Error')
 
-			ax[1].plot(Ld_err,'r-')
-			ax[1].plot(Rd_err,'b-')
+			ax[1].plot(Ld_err[:step_num],'r-')
+			ax[1].plot(Rd_err[:step_num],'b-')
 			ax[1].legend(['left','right'])
 			ax[1].grid()
 			ax[1].set_title('New Point Distance Error')
 
-			ax[2].plot(R_loc,'r-',linewidth=0.5,alpha=0.5)
-			ax[2].plot(R_grad,'b-',linewidth=0.5,alpha=0.5)
-			ax[2].plot(R_tot,'g-',linewidth=2.0)
+			ax[2].plot(R_loc[:step_num],'r-',linewidth=0.5,alpha=0.5)
+			ax[2].plot(R_grad[:step_num],'b-',linewidth=0.5,alpha=0.5)
+			ax[2].plot(R_tot[:step_num],'g-',linewidth=2.0)
 			ax[2].legend(['location-based','gradient-based','total'],loc=1)
-			ax[2].plot(np.full(n_iter,185.5),'k:',alpha=0.5)
+			# ax[2].plot(np.full(step_num,185.5),'k:',alpha=0.5)
 			ax[2].grid()
-			ax[2].set_ylim((120,260))
+			ax[2].set_ylim((220,280))
 			ax[2].set_title('Radius of Curvature')
 
-			ax[3].plot(Tilt_loc,'r-',linewidth=0.5,alpha=0.5)
-			ax[3].plot(Tilt_grad,'b-',linewidth=0.5,alpha=0.5)
-			ax[3].plot(Tilt_tot,'g-',linewidth=2.0)
+			ax[3].plot(Tilt_loc[:step_num],'r-',linewidth=0.5,alpha=0.5)
+			ax[3].plot(Tilt_grad[:step_num],'b-',linewidth=0.5,alpha=0.5)
+			ax[3].plot(Tilt_tot[:step_num],'g-',linewidth=2.0)
 			ax[3].legend(['location-based','gradient-based','total'],loc=9)
 			ax[3].grid()
 			ax[3].set_title('Curve Tilt Approximation')
@@ -354,16 +356,17 @@ class Eye():
 		plt.plot(pseeds[:,1],pseeds[:,0],'r.')
 		plt.show()
 
-
 class Curve():
 	def __init__(self,pseed,eye):
 		self.curv = 0.0
+		self.curv_var = 0.0
 		self.c_loc = 0
 		self.c_grad=0
 		self.tilt_loc = 0
 		self.tilt_grad = 0
 		self.eye = eye
 		self.tilt = self.eye.pgradient(pseed[0],pseed[1])
+		self.tilt_var = 0
 		pseed = self.relocateSeed(pseed)
 		self.pseed = tuple(pseed)
 		self.pLtail = tuple(pseed)
@@ -441,7 +444,9 @@ class Curve():
 
 	def updateCurv(self,p_lnew,p_rnew):
 		c_new = self.getCnew(p_lnew,p_rnew)
+		tmp = c_new-self.curv
 		self.curv += 0.3*(c_new-self.curv)
+		self.curv_var += tmp*(c_new-self.curv)
 
 	def getTiltnew(self,p_lnew,p_rnew):
 		th_lnew = self.eye.pgradient(p_lnew[0],p_lnew[1])%(2*np.pi)
@@ -472,9 +477,9 @@ class Curve():
 	def updateTilt(self,p_lnew,p_rnew):
 		tilt_new = self.getTiltnew(p_lnew,p_rnew)
 		self.tilt_err = angleDiff(tilt_new,self.tilt)
-		# print(th_lnew,th_rnew,est_tilt,self.tilt,self.tilt_err)
 		self.tilt += 0.5*angleDiff(tilt_new,self.tilt)
 		self.tilt = self.tilt % (2*np.pi)
+		self.tilt_var += self.tilt_err*angleDiff(tilt_new,self.tilt)
 
 	def grow(self):
 		self.age += 1
@@ -511,6 +516,8 @@ class Curve():
 		p_lnew = self.sampleAOI(self.pLtail,lAOI)
 
 		self.recordError(p_lnew,p_rnew)
+		if self.Ld_err >= 3 or self.Rd_err >= 3:
+			self.status = "stopped"
 
 		self.updateTilt(p_lnew,p_rnew)
 		self.updateCurv(p_lnew,p_rnew)
@@ -621,8 +628,8 @@ class Curve():
 		l1 = "	left end at (%i,%i)\n" % (self.pLtail[0],self.pLtail[1])
 		l2 = "	right end at (%i,%i)\n" % (self.pRtail[0],self.pRtail[1])
 		l3 = "	seed at (%i,%i)\n" % (self.pseed[0],self.pseed[1])
-		l4 = "	curvature is %f \n" % round(self.curv,4)
-		l5 = "	tilt is %f \n" % self.tilt
+		l4 = "	curvature is %f, stdev: %f \n" % (round(self.curv,4),(self.curv_var/self.age)**0.5)
+		l5 = "	tilt is %f, stdev: %f \n" % (self.tilt,(self.tilt_var/self.age)**0.5)
 		return h1+h2+l1+l2+l3+l4+l5+h1
 		pass
 
@@ -944,10 +951,10 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 if __name__ == "__main__":
 	# img = testImage(mode='gaussian',m=0.0,v=0.3)
 	# img = testImage(mode='s&p',d=0.2,name='ellipse')
-	img = testImage(mode='gaussian',v=0.00,name='ball_BW.png')
-	eye = Eye(img,preprocessing=False)
-	# eye.growCurve(p_loc=(1515,1297),n_iter=10,show_data=True)
-	eye.findCurves()
+	img = testImage(mode='gaussian',v=0.00,name='circle_breaks.png')
+	eye = Eye(img,preprocessing=True)
+	eye.growCurve(p_loc=(56,342),n_iter=80,anim=True,show_data=True)
+	# eye.findCurves()
 
 
 
