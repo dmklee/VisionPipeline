@@ -251,7 +251,6 @@ if __name__ == "__main__":
 		plt.plot([curve.seed[1],curve.seed[1]+3*np.cos(curve.tilt)],
 				 [curve.seed[0],curve.seed[0]+3*np.sin(curve.tilt)],'b-')
 		for i in xrange(520):
-			curve.grow()
 			color = 'g.'
 			# if curve.curv_avg < 0:
 			# 	color = 'r.'
