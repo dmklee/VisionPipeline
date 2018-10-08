@@ -232,7 +232,9 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	img = testImage(name='circle_breaks.png')
+	colors = plt.get_cmap('RdYlBu')
+
+	img = testImage(name='ball_BW.png')
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,8))
@@ -244,7 +246,7 @@ if __name__ == "__main__":
 		curve = basicCurve(seed,edges,gradients)
 		if not curve.findRooting():
 			pass
-		plt.plot(curve.seed[1],curve.seed[0],'r*')
+		# plt.plot(curve.seed[1],curve.seed[0],'r*')
 		plt.plot([curve.seed[1],curve.seed[1]+5*np.cos(curve.tilt)],
 				 [curve.seed[0],curve.seed[0]+5*np.sin(curve.tilt)],'b-')
 		for i in xrange(20):
@@ -254,7 +256,9 @@ if __name__ == "__main__":
 			# 	color = 'r.'
 			# plt.plot(curve.end[1],curve.end[0],color)
 		path = curve.path()
-		plt.plot(path[:,1],path[:,0],'b-')	
+		std_dev = (curve.curv_var/(curve.num_pts+1))**0.5
+		val = 1-min(1,std_dev/0.04)
+		plt.plot(path[:,1],path[:,0],'-',color=colors(val))	
 
 	plt.show()
 
