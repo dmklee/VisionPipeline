@@ -158,16 +158,17 @@ class basicCurve():
 		self.updateCurvature(new_pt)
 		self.end = new_pt
 
-	def path(self,res=10):
+	def path(self,res=5):
+		# res is the number of pixels covered by a path point
 		vec_StoEnd = np.subtract(self.end,self.seed)
 		q_StoEnd = np.linalg.norm(vec_StoEnd)
 		direction = self.tilt-self.side*np.pi/2.
 		if abs(self.curv_avg) < 0.00001:
 			return np.subtract(self.seed,q_StoEnd*np.array(((0,0),(np.sin(direction),np.cos(direction)))))
 		radius = abs(1/self.curv_avg)
-		th_prog = 2*np.arcsin(q_StoEnd*self.curv_avg/2.)
-		th_inc = np.linspace(0.0,th_prog,num=res)
-		vec = np.empty((res,2))
+		th_prog = 2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
+		th_inc = np.linspace(0.0,th_prog,num=self.num_pts//res)
+		vec = np.empty((self.num_pts//res,2))
 		vec[:,0] = radius*(1-np.cos(th_inc))
 		vec[:,1] = radius*np.sin(th_inc)
 		R = np.mat(((1,0),(0,1)))
@@ -234,31 +235,33 @@ class basicCurve():
 if __name__ == "__main__":
 	colors = plt.get_cmap('RdYlBu')
 
-	img = testImage(name='ball_BW.png')
+	img = testImage(name='circle.png')
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,8))
 	plt.imshow(edges,cmap='gray')
 	start = time.time()
 	seeds = [(54,449)]
-	seeds = edgeSniffer(edges,grouping=20)
+	seeds = edgeSniffer(edges,grouping=400)
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
 		if not curve.findRooting():
 			pass
 		# plt.plot(curve.seed[1],curve.seed[0],'r*')
-		plt.plot([curve.seed[1],curve.seed[1]+5*np.cos(curve.tilt)],
-				 [curve.seed[0],curve.seed[0]+5*np.sin(curve.tilt)],'b-')
-		for i in xrange(20):
+		plt.plot([curve.seed[1],curve.seed[1]+3*np.cos(curve.tilt)],
+				 [curve.seed[0],curve.seed[0]+3*np.sin(curve.tilt)],'b-')
+		for i in xrange(520):
 			curve.grow()
 			color = 'g.'
 			# if curve.curv_avg < 0:
 			# 	color = 'r.'
-			# plt.plot(curve.end[1],curve.end[0],color)
+			# std_dev = (curve.curv_var/(curve.num_pts+1))**0.5
+			# val = 1-min(1,std_dev/0.04)
+			# plt.plot(curve.end[1],curve.end[0],'s',color=colors(val))
 		path = curve.path()
 		std_dev = (curve.curv_var/(curve.num_pts+1))**0.5
-		val = 1-min(1,std_dev/0.04)
-		plt.plot(path[:,1],path[:,0],'-',color=colors(val))	
+		val = 1-min(1,std_dev/0.02)
+		plt.plot(path[:,1],path[:,0],'r-')	
 
 	plt.show()
 
