@@ -217,12 +217,9 @@ class basicCurve():
 	def getTiltNew(self):
 		th_ltail = self.gradients[self.ltail]%(2*np.pi)
 		th_rtail = self.gradients[self.rtail]%(2*np.pi)
-		print(th_ltail,th_rtail)
 		if th_rtail < th_ltail:
 			th_rtail += 2*np.pi
 		tilt_grad = th_ltail- (th_ltail-th_rtail)/2.
-		print(tilt_grad)
-		print()
 
 		vec_StoR = np.subtract(self.rtail,self.seed)
 		q_StoR = np.linalg.norm(vec_StoR)
@@ -335,15 +332,24 @@ class basicCurve():
 	@staticmethod
 	def getAOIs():
 		AOIs = np.empty((8,3,2),dtype=int)
-		#move in CCW direction
-		AOIs[7] = np.array(((1,-1),(1,0),(1,1)))
-		AOIs[6] = np.array(((0,1),(1,0),(1,1)))
-		AOIs[5] = np.array(((1,1),(0,1),(-1,1)))
-		AOIs[4] = np.array(((-1,1),(0,1),(-1,0)))
-		AOIs[3] = np.array(((-1,-1),(-1,0),(-1,1)))
-		AOIs[2] = np.array(((-1,0),(-1,-1),(0,-1)))
-		AOIs[1] = np.array(((1,-1),(0,-1),(-1,-1)))
-		AOIs[0] = np.array(((0,-1),(1,-1),(1,0)))
+		# AOIs[7] = np.array(((1,-1),(1,0),(1,1))) # right side
+		# AOIs[6] = np.array(((0,1),(1,0),(1,1))) #top right
+		# AOIs[5] = np.array(((1,1),(0,1),(-1,1)))
+		# AOIs[4] = np.array(((-1,1),(0,1),(-1,0)))
+		# AOIs[3] = np.array(((-1,-1),(-1,0),(-1,1)))
+		# AOIs[2] = np.array(((-1,0),(-1,-1),(0,-1)))
+		# AOIs[1] = np.array(((1,-1),(0,-1),(-1,-1)))
+		# AOIs[0] = np.array(((0,-1),(1,-1),(1,0))) #bottom right
+
+		#faster version
+		AOIs[7] = np.array(((2,-1),(2,0),(2,1)))
+		AOIs[6] = np.array(((1,1),(1,2),(2,1)))
+		AOIs[5] = np.array(((1,2),(0,2),(-1,2)))
+		AOIs[4] = np.array(((-1,1),(-1,2),(-2,1)))
+		AOIs[3] = np.array(((-2,-1),(-2,0),(-2,1)))
+		AOIs[2] = np.array(((-1,-1),(-1,-2),(-2,-1)))
+		AOIs[1] = np.array(((1,-2),(0,-2),(-1,-2)))
+		AOIs[0] = np.array(((1,-1),(1,-2),(2,-1)))
 		return AOIs
 
 	@staticmethod
@@ -358,7 +364,7 @@ class basicCurve():
 if __name__ == "__main__":
 	name = "circle.png"
 
-	img = testImage(mode='gaussian',v=0.0,name=name)
+	img = testImage(mode='gaussian',v=0.01,name=name)
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,8))
