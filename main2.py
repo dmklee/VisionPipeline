@@ -137,11 +137,9 @@ class basicCurve():
 		self.c_loc = 0
 
 	def expand(self):
-		print(np.sign(self.curv_avg))
 		if self.num_pts == 20:
-			self.status = 'left'
+			# self.status = 'left'
 			self.AOIs = basicCurve.getAOIs(spacing=1)
-		# 	print(abs(1/self.curv_avg))
 		if self.status == 'dual':
 			self.expandDual()
 		elif self.status =='right':
@@ -255,6 +253,25 @@ class basicCurve():
 		self.tilt += delta/self.num_pts
 		self.tilt = self.tilt % (2*np.pi)
 
+	def getModeledTail(self,side):
+		if side == 1:
+			end = self.rtail
+		else:
+			end = self.ltail
+		vec_StoEnd = np.subtract(end,self.seed)
+		q_StoEnd = np.linalg.norm(vec_StoEnd)
+		th_prog = 2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
+		direction = self.tilt+side*np.pi/2.
+		try:
+			radius = abs(1/self.curv_avg)
+		except ZeroDivisionError:
+			return np.array(end)
+		vec = radius*np.array(((1-np.cos(th_prog)),np.sin(th_prog)))
+		R = np.array(((np.cos(direction),-np.sin(direction)),
+						(np.sin(direction),np.cos(direction))))
+		vec = R*vec
+		return np.add(-side*np.sign(self.curv_avg)*vec,self.seed)
+
 	def sidepath(self,side,res=8):
 		# res is the number of pixels covered by a path point
 		if side == 1:
@@ -333,7 +350,7 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	name = "small_circle.png"
+	name = "circles.png"
 
 	img = testImage(mode='gaussian',v=0.01,name=name)
 	img = gaussianFilter(img,sigma=1)
@@ -342,21 +359,16 @@ if __name__ == "__main__":
 	plt.imshow(edges,cmap='gray')
 	start = time.time()
 	seeds = edgeSniffer(edges,grouping=400)
-	# seeds = [(374,291)]
-	seeds = [seeds[0]]
+	seeds = [(383,270)]
+	# seeds = [seeds[0]]
 
-	growth_steps = 180
+	growth_steps = 82
 	curv_data = np.empty((growth_steps,4))
-	path_data, = plt.plot([],[],'b-',linewidth=4)
+	path_data, = plt.plot([],[],'b-',linewidth=2.5)
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
 		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=10)
-		# rooting = np.array((np.sin(curve.tilt+np.pi/2),np.cos(curve.tilt+np.pi/2)))
-		# rooting = np.array((np.add(curve.seed,-40*rooting),
-		# 					np.add(curve.seed,40*rooting)))
-		# plt.plot(rooting[:,1],rooting[:,0],'b-',linewidth=1.5)
-		# plt.plot(curve.pts[:,1],curve.pts[:,0],'r.')
-
+	
 		
 		for i in xrange(growth_steps):
 			curve.expand()
@@ -365,9 +377,11 @@ if __name__ == "__main__":
 			else:
 				delta_c = 0
 			curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
-			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
+			modelTail = curve.getModeledTail(1)
+			plt.plot(modelTail[1],modelTail[0],'b.',markersize=2.5)
+			plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
-			if i % 10 == 0:
+			if i % 2 == 0:
 				path = curve.path()
 				path_data.set_data(path[:,1],path[:,0])
 				plt.draw()
