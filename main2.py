@@ -137,10 +137,11 @@ class basicCurve():
 		self.c_loc = 0
 
 	def expand(self):
+		print(np.sign(self.curv_avg))
 		if self.num_pts == 20:
 			self.status = 'left'
 			self.AOIs = basicCurve.getAOIs(spacing=1)
-			print(abs(1/self.curv_avg))
+		# 	print(abs(1/self.curv_avg))
 		if self.status == 'dual':
 			self.expandDual()
 		elif self.status =='right':
@@ -193,12 +194,12 @@ class basicCurve():
 		if side == 1:
 			c_new = self.getCnewSingle(side,self.rtail)
 		elif side == -1:
-			c_new = self.getCnewSingle(side,self.ltail)
+			c_new = -self.getCnewSingle(side,self.ltail)
 		else:
 			c_new = self.getCnewDual()
 		old_curv_avg = self.curv_avg
 		self.curv_avg += 0.3*(c_new-self.curv_avg)
-		self.curv_avg = -1/150.
+		# self.curv_avg = -1/150.
 	
 	def growTail(self,side,pt):
 		direction = self.gradients[pt]-side*np.pi/2.
@@ -233,32 +234,26 @@ class basicCurve():
 		if np.dot(rl_vec,vec_tilt) < 0:
 			tilt_grad -= np.pi
 
-		# vec_StoR = np.subtract(self.rtail,self.seed)
-		# q_StoR = np.linalg.norm(vec_StoR)
-		# vec_StoL = np.subtract(self.ltail,self.seed)
-		# q_StoL = np.linalg.norm(vec_StoL)
-		# vec_new = vec_StoR/q_StoR + vec_StoL/q_StoL
-		# sgn = np.sign(np.dot(vec_new,vec_tilt))
-		# tilt_loc = (np.arctan2(vec_new[0],vec_new[1])-sgn*np.pi)
+		vec_StoR = np.subtract(self.rtail,self.seed)
+		q_StoR = np.linalg.norm(vec_StoR)
+		vec_StoL = np.subtract(self.ltail,self.seed)
+		q_StoL = np.linalg.norm(vec_StoL)
+		vec_new = vec_StoR/q_StoR + vec_StoL/q_StoL
+		sgn = np.sign(np.dot(vec_new,vec_tilt))
+		tilt_loc = (np.arctan2(vec_new[0],vec_new[1])-sgn*np.pi)
 
-		# z = 0*np.clip(((self.num_pts-16)/20),0,0.5) #z is the contribution of tilt_loc
-		# tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
-		# print(round(tilt_grad,4),round(tilt_loc,4),round(tilt_new,4),
-		# 		round(angleDiff(tilt_new,self.tilt),4),round(self.tilt,4))
-		return tilt_grad%(2*np.pi)
+		z = np.clip(((self.num_pts-10)/20),0,1.0) #z is the contribution of tilt_loc
+		tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
 
-	def updateTilt(self):
+		# print(tilt_grad%(2*np.pi),tilt_loc%(2*np.pi),self.tilt)
+		return tilt_new
+
+	def updateTilt(self,mode='dual'):
 		tilt_new = self.getTiltNew()
-		tilt_old = self.tilt 
-		std_dev = (self.tilt_var/self.num_pts)**0.5
+
 		delta = angleDiff(tilt_new,self.tilt)
-		# if abs(delta) > 2*std_dev:
-		# 	print('rejected')
-		# 	delta = 0
-		self.tilt += np.clip(delta,-std_dev,std_dev)/self.num_pts
+		self.tilt += delta/self.num_pts
 		self.tilt = self.tilt % (2*np.pi)
-		self.tilt_var += angleDiff(tilt_new,tilt_old)*(angleDiff(tilt_new,self.tilt))
-		# print(angleDiff(tilt_new,tilt_old),(self.tilt_var/self.num_pts)**0.5)
 
 	def sidepath(self,side,res=8):
 		# res is the number of pixels covered by a path point
@@ -302,51 +297,6 @@ class basicCurve():
 			except IndexError:
 				pass
 		return best_pt
-
-	def findRooting(self):
-		angles = np.zeros(25)
-		weights = np.zeros(25)
-		for i in range(-2,3):
-			for j in range(-2,3):
-				try:
-					angles[5*i+j] = self.gradients[seed[0]+i,seed[1]+j]
-					weights[5*i+j] = self.edges[seed[0]+i,seed[1]+j]
-				except IndexError:
-					pass
-		vec = np.array((np.dot(weights,np.cos(angles)),np.dot(weights,np.sin(angles))))
-		self.tilt = np.arctan2(vec[1],vec[0])
-		if np.linalg.norm(vec) > 0.7*np.sum(weights) and \
-				np.linalg.norm(vec) > 1.0:
-			return True
-		return False
-
-	def findRooting2(self):
-		acc = 13 #must be odd
-		pts = np.empty((acc,2),dtype=int)
-		grads = np.empty(acc)
-		pts[0] = self.seed
-		grads[0] = self.gradients[self.seed]
-		tilt = self.tilt
-		index = 1
-		for s in [-1,1]:
-			pt = self.seed
-			for i in range(acc//2):
-				d = self.gradients[pt] + s*np.pi/2
-				AOI_id = basicCurve.selectAOI(d)
-				AOI = self.AOIs[AOI_id]
-				pt = self.sampleAOI(AOI,pt)
-				grads[index] = self.gradients[pt]
-				pts[index] = pt
-				index += 1
-		A = np.stack([pts[:,1],np.ones(acc)]).T
-		m,c = np.linalg.lstsq(A,pts[:,0],rcond=None)[0]
-		self.pts = pts
-		root_tilt = np.arctan2(m,1)-self.side*np.pi/2
-		if abs(angleDiff(root_tilt,tilt)) > np.pi/2:
-			root_tilt += np.pi
-		grad_tilt = np.arctan2
-		self.tilt = root_tilt
-		return True
 
 	@staticmethod
 	def getAOIs(spacing=0):
