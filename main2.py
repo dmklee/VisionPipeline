@@ -125,8 +125,9 @@ class basicCurve():
 		self.curv_avg = 0.0
 		self.num_pts = 0
 		self.tilt = gradients[self.seed]%(2*np.pi)
+		self.tilt_var = 0.1
 		self.status = 'dual' #'right','left','dead'
-		self.AOIs = basicCurve.getAOIs()
+		self.AOIs = basicCurve.getAOIs(0)
 		self.rtail = self.seed
 		self.ltail = self.seed
 
@@ -136,6 +137,10 @@ class basicCurve():
 		self.c_loc = 0
 
 	def expand(self):
+		if self.num_pts == 20:
+			self.status = 'left'
+			self.AOIs = basicCurve.getAOIs(spacing=1)
+			print(abs(1/self.curv_avg))
 		if self.status == 'dual':
 			self.expandDual()
 		elif self.status =='right':
@@ -171,7 +176,8 @@ class basicCurve():
 		vec_LtoR = np.subtract(self.rtail,self.ltail)
 		q_LtoR = np.linalg.norm(vec_LtoR)
 		sgn = 1 if np.cross(vec_StoL,vec_StoR) >= 0 else -1
-		angle = np.arccos(np.clip(np.dot(vec_StoR,vec_StoL)/(q_StoL*q_StoR),-1,1))
+		angle = np.arccos(np.clip(np.dot(vec_StoR,vec_StoL)
+					/(q_StoL*q_StoR),-1,1))
 		c_loc = -sgn*2*np.sin(angle)/q_LtoR
 
 		th_ltail = self.gradients[self.ltail]
@@ -192,6 +198,7 @@ class basicCurve():
 			c_new = self.getCnewDual()
 		old_curv_avg = self.curv_avg
 		self.curv_avg += 0.3*(c_new-self.curv_avg)
+		self.curv_avg = -1/150.
 	
 	def growTail(self,side,pt):
 		direction = self.gradients[pt]-side*np.pi/2.
@@ -215,33 +222,45 @@ class basicCurve():
 		self.updateCurv()
 
 	def getTiltNew(self):
-		th_ltail = self.gradients[self.ltail]%(2*np.pi)
-		th_rtail = self.gradients[self.rtail]%(2*np.pi)
-		if th_rtail < th_ltail:
-			th_rtail += 2*np.pi
-		tilt_grad = th_ltail- (th_ltail-th_rtail)/2.
-
-		vec_StoR = np.subtract(self.rtail,self.seed)
-		q_StoR = np.linalg.norm(vec_StoR)
-		vec_StoL = np.subtract(self.ltail,self.seed)
-		q_StoL = np.linalg.norm(vec_StoL)
-
 		vec_tilt = np.array((np.cos(self.tilt),np.sin(self.tilt)))
 
-		vec_new = vec_StoR/q_StoR + vec_StoL/q_StoL
-		sgn = np.sign(np.dot(vec_new,vec_tilt))
-		tilt_loc = (np.arctan2(vec_new[0],vec_new[1])-sgn*np.pi)
+		dir_ltail = self.gradients[self.ltail]
+		dir_rtail = self.gradients[self.rtail]
+		l_vec = np.array((np.cos(dir_ltail),np.sin(dir_ltail)))
+		r_vec = np.array((np.cos(dir_rtail),np.sin(dir_rtail)))
+		rl_vec = np.add(r_vec,l_vec)
+		tilt_grad = (np.arctan2(rl_vec[1],rl_vec[0]))
+		if np.dot(rl_vec,vec_tilt) < 0:
+			tilt_grad -= np.pi
 
-		z = np.clip(((self.num_pts-16)/20),0,1) #z is the contribution of tilt_loc
-		tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
-		return tilt_new
+		# vec_StoR = np.subtract(self.rtail,self.seed)
+		# q_StoR = np.linalg.norm(vec_StoR)
+		# vec_StoL = np.subtract(self.ltail,self.seed)
+		# q_StoL = np.linalg.norm(vec_StoL)
+		# vec_new = vec_StoR/q_StoR + vec_StoL/q_StoL
+		# sgn = np.sign(np.dot(vec_new,vec_tilt))
+		# tilt_loc = (np.arctan2(vec_new[0],vec_new[1])-sgn*np.pi)
+
+		# z = 0*np.clip(((self.num_pts-16)/20),0,0.5) #z is the contribution of tilt_loc
+		# tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
+		# print(round(tilt_grad,4),round(tilt_loc,4),round(tilt_new,4),
+		# 		round(angleDiff(tilt_new,self.tilt),4),round(self.tilt,4))
+		return tilt_grad%(2*np.pi)
 
 	def updateTilt(self):
 		tilt_new = self.getTiltNew()
-		self.tilt += 0.5*angleDiff(tilt_new,self.tilt)
+		tilt_old = self.tilt 
+		std_dev = (self.tilt_var/self.num_pts)**0.5
+		delta = angleDiff(tilt_new,self.tilt)
+		# if abs(delta) > 2*std_dev:
+		# 	print('rejected')
+		# 	delta = 0
+		self.tilt += np.clip(delta,-std_dev,std_dev)/self.num_pts
 		self.tilt = self.tilt % (2*np.pi)
+		self.tilt_var += angleDiff(tilt_new,tilt_old)*(angleDiff(tilt_new,self.tilt))
+		# print(angleDiff(tilt_new,tilt_old),(self.tilt_var/self.num_pts)**0.5)
 
-	def sidepath(self,side,res=5):
+	def sidepath(self,side,res=8):
 		# res is the number of pixels covered by a path point
 		if side == 1:
 			end = self.rtail
@@ -330,26 +349,28 @@ class basicCurve():
 		return True
 
 	@staticmethod
-	def getAOIs():
+	def getAOIs(spacing=0):
 		AOIs = np.empty((8,3,2),dtype=int)
-		# AOIs[7] = np.array(((1,-1),(1,0),(1,1))) # right side
-		# AOIs[6] = np.array(((0,1),(1,0),(1,1))) #top right
-		# AOIs[5] = np.array(((1,1),(0,1),(-1,1)))
-		# AOIs[4] = np.array(((-1,1),(0,1),(-1,0)))
-		# AOIs[3] = np.array(((-1,-1),(-1,0),(-1,1)))
-		# AOIs[2] = np.array(((-1,0),(-1,-1),(0,-1)))
-		# AOIs[1] = np.array(((1,-1),(0,-1),(-1,-1)))
-		# AOIs[0] = np.array(((0,-1),(1,-1),(1,0))) #bottom right
+		if spacing == 0:
+			AOIs[7] = np.array(((1,-1),(1,0),(1,1))) # right side
+			AOIs[6] = np.array(((0,1),(1,0),(1,1))) #top right
+			AOIs[5] = np.array(((1,1),(0,1),(-1,1)))
+			AOIs[4] = np.array(((-1,1),(0,1),(-1,0)))
+			AOIs[3] = np.array(((-1,-1),(-1,0),(-1,1)))
+			AOIs[2] = np.array(((-1,0),(-1,-1),(0,-1)))
+			AOIs[1] = np.array(((1,-1),(0,-1),(-1,-1)))
+			AOIs[0] = np.array(((0,-1),(1,-1),(1,0))) #bottom right
 
 		#faster version
-		AOIs[7] = np.array(((2,-1),(2,0),(2,1)))
-		AOIs[6] = np.array(((1,1),(1,2),(2,1)))
-		AOIs[5] = np.array(((1,2),(0,2),(-1,2)))
-		AOIs[4] = np.array(((-1,1),(-1,2),(-2,1)))
-		AOIs[3] = np.array(((-2,-1),(-2,0),(-2,1)))
-		AOIs[2] = np.array(((-1,-1),(-1,-2),(-2,-1)))
-		AOIs[1] = np.array(((1,-2),(0,-2),(-1,-2)))
-		AOIs[0] = np.array(((1,-1),(1,-2),(2,-1)))
+		if spacing == 1:
+			AOIs[7] = np.array(((2,-1),(2,0),(2,1)))
+			AOIs[6] = np.array(((1,1),(1,2),(2,1)))
+			AOIs[5] = np.array(((1,2),(0,2),(-1,2)))
+			AOIs[4] = np.array(((-1,1),(-1,2),(-2,1)))
+			AOIs[3] = np.array(((-2,-1),(-2,0),(-2,1)))
+			AOIs[2] = np.array(((-1,-1),(-1,-2),(-2,-1)))
+			AOIs[1] = np.array(((1,-2),(0,-2),(-1,-2)))
+			AOIs[0] = np.array(((1,-1),(1,-2),(2,-1)))
 		return AOIs
 
 	@staticmethod
@@ -362,23 +383,24 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	name = "circle.png"
+	name = "small_circle.png"
 
 	img = testImage(mode='gaussian',v=0.01,name=name)
-	img = gaussianFilter(img)
+	img = gaussianFilter(img,sigma=1)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,8))
 	plt.imshow(edges,cmap='gray')
 	start = time.time()
 	seeds = edgeSniffer(edges,grouping=400)
-	# seeds = [(60,315)]
+	# seeds = [(374,291)]
+	seeds = [seeds[0]]
 
-	growth_steps = 200
+	growth_steps = 180
 	curv_data = np.empty((growth_steps,4))
-	path_data, = plt.plot([],[],'b-')
+	path_data, = plt.plot([],[],'b-',linewidth=4)
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
-		plt.plot(curve.seed[1],curve.seed[0],'r*',markersize=20)
+		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=10)
 		# rooting = np.array((np.sin(curve.tilt+np.pi/2),np.cos(curve.tilt+np.pi/2)))
 		# rooting = np.array((np.add(curve.seed,-40*rooting),
 		# 					np.add(curve.seed,40*rooting)))
@@ -393,13 +415,13 @@ if __name__ == "__main__":
 			else:
 				delta_c = 0
 			curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
-			plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=1.5)
-			plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=1.5)
-			if i % 25 == 0:
+			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
+			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
+			if i % 10 == 0:
 				path = curve.path()
 				path_data.set_data(path[:,1],path[:,0])
 				plt.draw()
-				plt.pause(0.005)
+				plt.pause(0.0001)
 		path = curve.path()
 		path_data.set_data(path[:,1],path[:,0])
 		# plt.figure()
@@ -420,7 +442,7 @@ if __name__ == "__main__":
 
 	plt.draw()
 	plt.pause(1)
-	# plt.show()
+	plt.show()
 
 
 
