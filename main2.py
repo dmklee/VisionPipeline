@@ -260,16 +260,16 @@ class basicCurve():
 			end = self.ltail
 		vec_StoEnd = np.subtract(end,self.seed)
 		q_StoEnd = np.linalg.norm(vec_StoEnd)
-		th_prog = 2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
+		th_prog = -side*2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
 		direction = self.tilt+side*np.pi/2.
 		try:
 			radius = abs(1/self.curv_avg)
 		except ZeroDivisionError:
 			return np.array(end)
 		vec = radius*np.array(((1-np.cos(th_prog)),np.sin(th_prog)))
-		R = np.array(((np.cos(direction),-np.sin(direction)),
-						(np.sin(direction),np.cos(direction))))
-		vec = R*vec
+		R = np.array(((np.cos(direction),np.sin(direction)),
+						(-np.sin(direction),np.cos(direction))))
+		vec = np.dot(R,vec)
 		return np.add(-side*np.sign(self.curv_avg)*vec,self.seed)
 
 	def sidepath(self,side,res=8):
@@ -292,6 +292,7 @@ class basicCurve():
 		R = np.mat(((np.cos(direction),-np.sin(direction)),
 						(np.sin(direction),np.cos(direction)) ))
 		vec = np.mat(vec)*R
+
 		return np.add(self.seed,-side*np.sign(self.curv_avg)*vec)
 
 	def path(self,res=5):
@@ -377,11 +378,9 @@ if __name__ == "__main__":
 			else:
 				delta_c = 0
 			curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
-			modelTail = curve.getModeledTail(1)
-			plt.plot(modelTail[1],modelTail[0],'b.',markersize=2.5)
-			plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
+			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
-			if i % 2 == 0:
+			if i % 10 == 0:
 				path = curve.path()
 				path_data.set_data(path[:,1],path[:,0])
 				plt.draw()
