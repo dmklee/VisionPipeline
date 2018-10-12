@@ -76,7 +76,7 @@ def curveDetector():
 		if not still_alive or step_num > 20:
 			break
 
-def edgeSniffer(edges,grouping=40,style='absolute'):
+def edgeSniffer(edges,grouping=30,style='absolute'):
 	#take an image of edge likelihoods
 	# finds the best edge candidate in a section of grouping^2 pixels
 	# returns a list of indices
@@ -130,29 +130,58 @@ class basicCurve():
 		self.AOIs = basicCurve.getAOIs(0)
 		self.rtail = self.seed
 		self.ltail = self.seed
-
+		self.rArchive = np.zeros((3,2),dtype=int)
+		self.lArchive = np.zeros((3,2),dtype=int)
+		self.cArchive = np.zeros(3)
+		self.tArchive = np.zeros(3)
 		#right is 1, left is -1
 
 		self.c_grad = 0
 		self.c_loc = 0
 
+	def updateArchive(self):	
+		self.cArchive[2] = self.cArchive[1]
+		self.cArchive[1] = self.cArchive[0]
+		self.cArchive[0] = self.curv_avg
+		self.tArchive[2] = self.tArchive[1]
+		self.tArchive[1] = self.tArchive[0]
+		self.tArchive[0] = self.tilt
+		self.rArchive[2,:] = self.rArchive[1,:]
+		self.rArchive[1,:] = self.rArchive[0,:]
+		self.rArchive[0,:] = self.rtail
+		self.lArchive[2,:] = self.lArchive[1,:]
+		self.lArchive[1,:] = self.lArchive[0,:]
+		self.lArchive[0,:] = self.ltail
+
+	def revertToArchive(self):
+		age = self.cArchive.size-1
+		self.rtail = tuple(self.rArchive[age,:])
+		self.ltail = tuple(self.lArchive[age,:])
+		self.curv_avg = self.cArchive[age]
+		self.tilt = self.tArchive[age]
+
 	def expand(self):
+		self.updateArchive()
 		if self.num_pts == 20:
 			# self.status = 'left'
 			self.AOIs = basicCurve.getAOIs(spacing=1)
 		if self.status == 'dual':
 			self.expandDual()
 			if self.getDistErr(1) > 2:
+				self.revertToArchive()
 				self.status = 'left'
 			if self.getDistErr(-1) > 2:
+				self.revertToArchive()
 				self.status = 'right'
 		elif self.status =='right':
 			self.expandSingle(1)
 			if max(self.getDistErr(1),self.getDistErr(-1)) > 2:
+				self.revertToArchive()
 				self.status = 'dead'
 		elif self.status == 'left':
 			self.expandSingle(-1)
 			if  max(self.getDistErr(1),self.getDistErr(-1)) > 2:
+				self.revertToArchive()
 				self.status = 'dead'
 
 	def getDistErr(self,side):
@@ -279,9 +308,9 @@ class basicCurve():
 		q_StoEnd = np.linalg.norm(vec_StoEnd)
 		th_prog = -side*2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
 		direction = self.tilt+side*np.pi/2.
-		try:
+		if abs(self.curv_avg) != 0:
 			radius = abs(1/self.curv_avg)
-		except ZeroDivisionError:
+		else:
 			return np.array(end)
 		vec = radius*np.array(((1-np.cos(th_prog)),np.sin(th_prog)))
 		R = np.array(((np.cos(direction),np.sin(direction)),
@@ -299,7 +328,8 @@ class basicCurve():
 		q_StoEnd = np.linalg.norm(vec_StoEnd)
 		direction = self.tilt+side*np.pi/2.
 		if abs(self.curv_avg) < 0.00001:
-			return np.subtract(self.seed,q_StoEnd*np.array(((0,0),(np.sin(direction),np.cos(direction)))))
+			print('here')
+			return np.add(self.seed,q_StoEnd*np.array(((0,0),(np.sin(direction),np.cos(direction)))))
 		radius = abs(1/self.curv_avg)
 		th_prog = 2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
 		th_inc = -side*np.linspace(0.0,th_prog,num=self.num_pts//res)
@@ -368,20 +398,21 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	# name = "straight_edges.png"
-	# name = 'circles.png'
-	name = 'simple_shapes.png'
-	img = testImage(mode='gaussian',v=0.1,name=name)
+	# name = "many_circles.png"
+	name = 'linking_testbed.png'
+	# name = 'simple_shapes.png'
+	img = testImage(mode='gaussian',v=0.05,name=name)
 	img = gaussianFilter(img,sigma=1)
 	edges,gradients = sobelOp(img)
-	plt.figure(figsize=(10,8))
+	plt.figure(figsize=(10,6))
 	plt.imshow(edges,cmap='gray')
-	start = time.time()
-	seeds = edgeSniffer(edges,grouping=40)
-	# seeds = [(363,237),(192,68),(105,396),(251,315)]
+	plt.autoscale(False)
+	plt.tight_layout()
+	seeds = edgeSniffer(edges,grouping=40,style='absolute')
+	# seeds = [(382,128)]
 	# seeds = [seeds[0]]
 	paths = []
-	growth_steps = 200
+	growth_steps = 400
 	curv_data = np.empty((growth_steps,4))
 	path_data, = plt.plot([],[],'b-',linewidth=2.5)
 	for seed in seeds:
@@ -406,13 +437,12 @@ if __name__ == "__main__":
 			# 	path = curve.path()
 			# 	path_data.set_data(path[:,1],path[:,0])
 			# 	plt.draw()
-			# 	plt.pause(0.0001)
+			# 	plt.pause(0.001)
 		path = curve.path()
-		print(1/curve.curv_avg)
 		path_data.set_data(path[:,1],path[:,0])
 		paths.append(path)
 		plt.draw()
-		plt.pause(0.001)
+		plt.pause(0.01)
 		# plt.figure(figsize=(10,8))
 		# plt.plot(DistErr[:,0],'r-',DistErr[:,1],'b-')
 		# plt.legend(('Right Side','Left Side'))
