@@ -328,7 +328,6 @@ class basicCurve():
 		q_StoEnd = np.linalg.norm(vec_StoEnd)
 		direction = self.tilt+side*np.pi/2.
 		if abs(self.curv_avg) < 0.00001:
-			print('here')
 			return np.add(self.seed,q_StoEnd*np.array(((0,0),(np.sin(direction),np.cos(direction)))))
 		radius = abs(1/self.curv_avg)
 		th_prog = 2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
@@ -399,7 +398,7 @@ class basicCurve():
 
 if __name__ == "__main__":
 	# name = "many_circles.png"
-	name = 'linking_testbed.png'
+	name = 'spiral.png'
 	# name = 'simple_shapes.png'
 	img = testImage(mode='gaussian',v=0.05,name=name)
 	img = gaussianFilter(img,sigma=1)
@@ -408,12 +407,12 @@ if __name__ == "__main__":
 	plt.imshow(edges,cmap='gray')
 	plt.autoscale(False)
 	plt.tight_layout()
-	seeds = edgeSniffer(edges,grouping=40,style='absolute')
-	# seeds = [(382,128)]
+	seeds = edgeSniffer(edges,grouping=20,style='absolute')
+	# seeds = [(164,154)]
 	# seeds = [seeds[0]]
 	paths = []
 	growth_steps = 400
-	curv_data = np.empty((growth_steps,4))
+	curv_data = np.empty((growth_steps))
 	path_data, = plt.plot([],[],'b-',linewidth=2.5)
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
@@ -425,7 +424,7 @@ if __name__ == "__main__":
 			if curve.status == 'dead':
 				break
 			curve.expand()
-
+			curv_data[i] = curve.curv_avg
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
 			# DistErr[i] = curve.getDistErr(1),curve.getDistErr(-1)
@@ -433,7 +432,7 @@ if __name__ == "__main__":
 			# lModelTail = curve.getModeledTail(-1)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			# if i % 1 == 0:
+			# if i % 5 == 0:
 			# 	path = curve.path()
 			# 	path_data.set_data(path[:,1],path[:,0])
 			# 	plt.draw()
@@ -443,9 +442,11 @@ if __name__ == "__main__":
 		paths.append(path)
 		plt.draw()
 		plt.pause(0.01)
+
 		# plt.figure(figsize=(10,8))
 		# plt.plot(DistErr[:,0],'r-',DistErr[:,1],'b-')
 		# plt.legend(('Right Side','Left Side'))
+		# plt.plot(curv_data,'g-')
 		# plt.title('Tail Distance Error over Time')
 
 	for path in paths:
