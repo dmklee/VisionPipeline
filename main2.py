@@ -412,9 +412,9 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	# seeds = edgeSniffer(edges,grouping=40,style='absolute')
-	seeds = [(164,154)]
-	seeds = [seeds[0]]
+	seeds = edgeSniffer(edges,grouping=40,style='absolute')
+	# seeds = [(164,154)]
+	# seeds = [seeds[0]]
 	paths = []
 	growth_steps = 60
 	curv_data = np.empty((growth_steps))
@@ -453,21 +453,15 @@ if __name__ == "__main__":
 		plt.draw()
 		plt.pause(0.01)
 
-			if i % 20 == 0:
-				path = curve.path()
-				path_data.set_data(path[:,1],path[:,0])
-				plt.draw()
-				plt.pause(0.001)
-
 		path = curve.path()
 		# path_data.set_data(path[:,1],path[:,0])
 		# paths.append(path)
 		# plt.draw()
 		# plt.pause(0.001)
 
-		plt.figure(figsize=(10,8))
-		plt.plot(curv_data,'g-')
-		plt.title('curvature during growth')
+		# plt.figure(figsize=(10,8))
+		# plt.plot(curv_data,'g-')
+		# plt.title('curvature during growth')
 
 		# plt.figure(figsize=(10,8))
 		# plt.plot(DistErr[:,0],'r-',DistErr[:,1],'b-')
