@@ -113,7 +113,7 @@ def edgeSniffer(edges,grouping=40,style='absolute'):
 	indices[:,1] = g*(offsets[:]%(h//g)) + argmaxes[:]%g
 
 	#could use thresholding in the future
-	indices = indices[np.where(maxes > 0.05)]
+	indices = indices[np.where(maxes > 0.1)]
 
 	return indices
 
@@ -148,11 +148,11 @@ class basicCurve():
 				self.status = 'right'
 		elif self.status =='right':
 			self.expandSingle(1)
-			if self.getDistErr(1) > 2:
+			if max(self.getDistErr(1),self.getDistErr(-1)) > 2:
 				self.status = 'dead'
 		elif self.status == 'left':
 			self.expandSingle(-1)
-			if self.getDistErr(-1) > 2:
+			if  max(self.getDistErr(1),self.getDistErr(-1)) > 2:
 				self.status = 'dead'
 
 	def getDistErr(self,side):
@@ -244,15 +244,20 @@ class basicCurve():
 		if np.dot(rl_vec,vec_tilt) < 0:
 			tilt_grad -= np.pi
 
-		vec_StoR = np.subtract(self.rtail,self.seed)
-		q_StoR = np.linalg.norm(vec_StoR)
-		vec_StoL = np.subtract(self.ltail,self.seed)
-		q_StoL = np.linalg.norm(vec_StoL)
-		vec_new = vec_StoR/q_StoR + vec_StoL/q_StoL
+		vSR = np.subtract(self.rtail,self.seed)
+		qSR = np.linalg.norm(vSR)
+		vSL = np.subtract(self.ltail,self.seed)
+		qSL = np.linalg.norm(vSL)
+		# we want to rotate vSR CCW 90 deg and vSL CW 90 deg
+		vec_new = qSL*np.array((-vSR[1],vSR[0])) \
+					+ qSR*np.array((vSL[1],-vSL[0]))
 		sgn = np.sign(np.dot(vec_new,vec_tilt))
-		tilt_loc = (np.arctan2(vec_new[0],vec_new[1])-sgn*np.pi)
+		
+		tilt_loc = np.arctan2(vec_new[0],vec_new[1])
+		if tilt_loc == 0.0:
+			tilt_loc = self.tilt
 
-		z = np.clip(((self.num_pts-10)/20),0,1.0) #z is the contribution of tilt_loc
+		z = np.clip(((self.num_pts)/25),0,1.0) #z is the contribution of tilt_loc
 		tilt_new = tilt_grad - z*angleDiff(tilt_grad,tilt_loc)
 
 		# print(tilt_grad%(2*np.pi),tilt_loc%(2*np.pi),self.tilt)
@@ -363,65 +368,60 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	name = "ellipse.png"
-
-	img = testImage(mode='gaussian',v=0.01,name=name)
+	# name = "straight_edges.png"
+	# name = 'circles.png'
+	name = 'simple_shapes.png'
+	img = testImage(mode='gaussian',v=0.1,name=name)
 	img = gaussianFilter(img,sigma=1)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,8))
 	plt.imshow(edges,cmap='gray')
 	start = time.time()
 	seeds = edgeSniffer(edges,grouping=40)
-	# seeds = [(390,283)]
+	# seeds = [(363,237),(192,68),(105,396),(251,315)]
 	# seeds = [seeds[0]]
 	paths = []
-	growth_steps = 82
+	growth_steps = 200
 	curv_data = np.empty((growth_steps,4))
 	path_data, = plt.plot([],[],'b-',linewidth=2.5)
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
 		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=10)
-	
+		
+		DistErr = np.zeros((growth_steps,2))
 		
 		for i in xrange(growth_steps):
+			if curve.status == 'dead':
+				break
 			curve.expand()
-			# if i > 0:
-			# 	delta_c = curve.curv_avg-curv_data[i-1,0]
-			# else:
-			# 	delta_c = 0
-			# curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
+
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
-			# if i % 10 == 0:
+			# DistErr[i] = curve.getDistErr(1),curve.getDistErr(-1)
+			# rModelTail = curve.getModeledTail(1)
+			# lModelTail = curve.getModeledTail(-1)
+			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
+			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
+			# if i % 1 == 0:
 			# 	path = curve.path()
 			# 	path_data.set_data(path[:,1],path[:,0])
 			# 	plt.draw()
 			# 	plt.pause(0.0001)
 		path = curve.path()
-		# path_data.set_data(path[:,1],path[:,0])
+		print(1/curve.curv_avg)
+		path_data.set_data(path[:,1],path[:,0])
 		paths.append(path)
-		# plt.draw()
-		# plt.pause(0.01)
-		# plt.figure()
-		# plt.plot(curv_data[:,1],'r-',linewidth=1.5)
-		# plt.plot(curv_data[:,2],'b-',linewidth=1.5)
-		# plt.plot(curv_data[:,0],'g-')
-		# plt.legend(('location-based','gradient-based','average'))
-		# plt.title('Curvature Data during Growth')
+		plt.draw()
+		plt.pause(0.001)
+		# plt.figure(figsize=(10,8))
+		# plt.plot(DistErr[:,0],'r-',DistErr[:,1],'b-')
+		# plt.legend(('Right Side','Left Side'))
+		# plt.title('Tail Distance Error over Time')
 
-		# if name == "small_circle.png":
-		# 	real_curv = 1/150.
-		# 	plt.plot(np.full(growth_steps,real_curv),'k--',linewidth=1.5)
-		# 	plt.ylim((0.75*real_curv,1.25*real_curv))
-		# if name == "circle.png":
-		# 	real_curv = 1/185.
-		# 	plt.plot(np.full(growth_steps,real_curv),'k--',linewidth=1.5)
-		# 	plt.ylim((0.5*real_curv,1.5*real_curv))
 	for path in paths:
-		if path.size > 20:
+		if path.size > 10:
 			plt.plot(path[:,1],path[:,0],'b-')
 	plt.draw()
-	plt.pause(1)
 	plt.show()
 
 
