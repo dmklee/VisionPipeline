@@ -363,7 +363,7 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	name = "circles.png"
+	name = "ellipse.png"
 
 	img = testImage(mode='gaussian',v=0.01,name=name)
 	img = gaussianFilter(img,sigma=1)
@@ -374,7 +374,7 @@ if __name__ == "__main__":
 	seeds = edgeSniffer(edges,grouping=40)
 	# seeds = [(390,283)]
 	# seeds = [seeds[0]]
-
+	paths = []
 	growth_steps = 82
 	curv_data = np.empty((growth_steps,4))
 	path_data, = plt.plot([],[],'b-',linewidth=2.5)
@@ -385,11 +385,11 @@ if __name__ == "__main__":
 		
 		for i in xrange(growth_steps):
 			curve.expand()
-			if i > 0:
-				delta_c = curve.curv_avg-curv_data[i-1,0]
-			else:
-				delta_c = 0
-			curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
+			# if i > 0:
+			# 	delta_c = curve.curv_avg-curv_data[i-1,0]
+			# else:
+			# 	delta_c = 0
+			# curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
 			# if i % 10 == 0:
@@ -398,9 +398,10 @@ if __name__ == "__main__":
 			# 	plt.draw()
 			# 	plt.pause(0.0001)
 		path = curve.path()
-		path_data.set_data(path[:,1],path[:,0])
-		plt.draw()
-		plt.pause(0.05)
+		# path_data.set_data(path[:,1],path[:,0])
+		paths.append(path)
+		# plt.draw()
+		# plt.pause(0.01)
 		# plt.figure()
 		# plt.plot(curv_data[:,1],'r-',linewidth=1.5)
 		# plt.plot(curv_data[:,2],'b-',linewidth=1.5)
@@ -416,7 +417,9 @@ if __name__ == "__main__":
 		# 	real_curv = 1/185.
 		# 	plt.plot(np.full(growth_steps,real_curv),'k--',linewidth=1.5)
 		# 	plt.ylim((0.5*real_curv,1.5*real_curv))
-
+	for path in paths:
+		if path.size > 20:
+			plt.plot(path[:,1],path[:,0],'b-')
 	plt.draw()
 	plt.pause(1)
 	plt.show()
