@@ -142,10 +142,23 @@ class basicCurve():
 			self.AOIs = basicCurve.getAOIs(spacing=1)
 		if self.status == 'dual':
 			self.expandDual()
+			if self.getDistErr(1) > 2:
+				self.status = 'left'
+			if self.getDistErr(-1) > 2:
+				self.status = 'right'
 		elif self.status =='right':
 			self.expandSingle(1)
+			if self.getDistErr(1) > 2:
+				self.status = 'dead'
 		elif self.status == 'left':
 			self.expandSingle(-1)
+			if self.getDistErr(-1) > 2:
+				self.status = 'dead'
+
+	def getDistErr(self,side):
+		realTail = self.rtail if side==1 else self.ltail
+		modelTail = self.getModeledTail(side)
+		return np.linalg.norm(np.subtract(realTail,modelTail))
 
 	def getCnewSingle(self,side,new_pt):
 		new_tilt = self.gradients[new_pt]
@@ -222,7 +235,6 @@ class basicCurve():
 
 	def getTiltNew(self):
 		vec_tilt = np.array((np.cos(self.tilt),np.sin(self.tilt)))
-
 		dir_ltail = self.gradients[self.ltail]
 		dir_rtail = self.gradients[self.rtail]
 		l_vec = np.array((np.cos(dir_ltail),np.sin(dir_ltail)))
@@ -359,8 +371,8 @@ if __name__ == "__main__":
 	plt.figure(figsize=(10,8))
 	plt.imshow(edges,cmap='gray')
 	start = time.time()
-	seeds = edgeSniffer(edges,grouping=400)
-	seeds = [(383,270)]
+	seeds = edgeSniffer(edges,grouping=40)
+	# seeds = [(390,283)]
 	# seeds = [seeds[0]]
 
 	growth_steps = 82
@@ -380,13 +392,15 @@ if __name__ == "__main__":
 			curv_data[i] = (curve.curv_avg,curve.c_loc,curve.c_grad,delta_c)
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
-			if i % 10 == 0:
-				path = curve.path()
-				path_data.set_data(path[:,1],path[:,0])
-				plt.draw()
-				plt.pause(0.0001)
+			# if i % 10 == 0:
+			# 	path = curve.path()
+			# 	path_data.set_data(path[:,1],path[:,0])
+			# 	plt.draw()
+			# 	plt.pause(0.0001)
 		path = curve.path()
 		path_data.set_data(path[:,1],path[:,0])
+		plt.draw()
+		plt.pause(0.05)
 		# plt.figure()
 		# plt.plot(curv_data[:,1],'r-',linewidth=1.5)
 		# plt.plot(curv_data[:,2],'b-',linewidth=1.5)
