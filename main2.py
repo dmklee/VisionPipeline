@@ -134,7 +134,8 @@ class basicCurve():
 		self.cArchive = np.zeros(3)
 		self.tArchive = np.zeros(3)
 		#right is 1, left is -1
-
+		self.lAnchor = tuple(seed)
+		self.rAnchor = tuple(seed)
 		self.c_grad = 0
 		self.c_loc = 0
 
@@ -170,23 +171,40 @@ class basicCurve():
 			if rd_err > 2:
 				self.revertToArchive()
 				self.status = 'left'
+				self.setNewAnchor(-1)
 			if ld_err > 2:
 				self.revertToArchive()
 				self.status = 'right'
+				self.setNewAnchor(1)
 		elif self.status =='right':
+			if (self.num_pts/20)**0.5 % 1 == 0:
+				self.setNewAnchor(1)
 			self.expandSingle(1)
-			if max(rd_err,ld_err) > 2:
+			rAnchor_err = self.getGrowthErr(1,self.rAnchor)[0]
+			if max(rd_err,ld_err,2*rAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'dead'
 		elif self.status == 'left':
+			if (self.num_pts/20)**0.5 % 1 == 0:
+				self.setNewAnchor(-1)
 			self.expandSingle(-1)
-			if max(rd_err,ld_err) > 2:
+			lAnchor_err = self.getGrowthErr(-1,self.lAnchor)[0]
+			if max(rd_err,ld_err,2*lAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'dead'
 
-	def getGrowthErr(self,side):
-		realTail = self.rtail if side==1 else self.ltail
-		modelTail, modelGrad = self.getModeledTail(side)
+	def setNewAnchor(self,side):
+		if side == 1:
+			self.rAnchor = self.rtail
+		else:
+			self.lAnchor = self.ltail
+
+	def getGrowthErr(self,side,pt=None):
+		if pt is None:
+			realTail = self.rtail if side==1 else self.ltail
+		else:
+			realTail = pt
+		modelTail, modelGrad = self.getModeledTail(side,pt)
 		d_err = np.linalg.norm(np.subtract(realTail,modelTail))
 		th_err = abs(angleDiff(modelGrad,self.gradients[realTail]))
 		return d_err, th_err
@@ -301,11 +319,12 @@ class basicCurve():
 		self.tilt += delta/self.num_pts
 		self.tilt = self.tilt % (2*np.pi)
 
-	def getModeledTail(self,side):
+	def getModeledTail(self,side,pt=None):
 		if side == 1:
 			end = self.rtail
 		else:
 			end = self.ltail
+		end = end if pt is None else pt
 		vec_StoEnd = np.subtract(end,self.seed)
 		q_StoEnd = np.linalg.norm(vec_StoEnd)
 		th_prog = -side*2*np.arcsin(np.clip(q_StoEnd*self.curv_avg/2.,-1,1))
@@ -401,10 +420,10 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	# name = "many_circles.png"
-	name = 'spiral.png'
-	# name = 'simple_shapes.png'
-	img = testImage(mode='gaussian',v=0.05,name=name)
+	name = "many_circles.png"
+	# name = 'spiral.png'
+	# name = 'linking_testbed.png'
+	img = testImage(mode='gaussian',v=0.00,name=name)
 	img = gaussianFilter(img,sigma=1)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,6))
@@ -413,12 +432,13 @@ if __name__ == "__main__":
 	plt.tight_layout()
 
 	seeds = edgeSniffer(edges,grouping=40,style='absolute')
-	# seeds = [(164,154)]
-	# seeds = [seeds[0]]
+	# seeds = [(141,650),(170,678)]
+	# seeds = [seeds[1]]
 	paths = []
-	growth_steps = 60
+	growth_steps = 400
 	curv_data = np.empty((growth_steps))
 	path_data, = plt.plot([],[],'b-',linewidth=3.5)
+	anchor_data, = plt.plot([],[],'r^',markersize=6)
 
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
@@ -444,6 +464,8 @@ if __name__ == "__main__":
 			# if i % 5 == 0:
 			# 	path = curve.path()
 			# 	path_data.set_data(path[:,1],path[:,0])
+			# 	anchors = np.vstack((curve.lAnchor,curve.rAnchor))
+			# 	anchor_data.set_data(anchors[:,1],anchors[:,0])
 			# 	plt.draw()
 			# 	plt.pause(0.001)
 
@@ -451,9 +473,9 @@ if __name__ == "__main__":
 		path_data.set_data(path[:,1],path[:,0])
 		paths.append(path)
 		plt.draw()
-		plt.pause(0.01)
+		plt.pause(0.1)
 
-		path = curve.path()
+		# path = curve.path()
 		# path_data.set_data(path[:,1],path[:,0])
 		# paths.append(path)
 		# plt.draw()
@@ -482,6 +504,15 @@ if __name__ == "__main__":
 	plt.draw()
 	plt.show()
 
-# use archive information to test for 
+# add confidence to curves
+#	i dont think it should be dependent on the absolute edge likelihood collected
+#	instead, it should look at agreement amongst the collected edgels, using intuition
+#	from NFA
 
+# allow broken edges to spawn new curve seeds
 
+# allow nearby seeds to conquer each other or join existing curves
+
+# create a system for linking touching curves
+
+# better sampling approach, allow for seeds to move

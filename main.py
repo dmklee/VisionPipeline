@@ -935,14 +935,15 @@ def testImage(mode='none',m=0.0,v=0.01,d=0.05,name='circle'):
 	# mode = "gaussian" => specify mean (m) and var (v)
 	# mode = "s&p" => specify density (d)
 	# mode = "speckle" => specify variance (v)
-	img = getIMG(name=name)[:,:,0]
+	real_img = getIMG(name=name)
+	img = real_img[:,:,0]
 	if mode == 'gaussian' or mode == 'speckle':
 		noisy = util.random_noise(img,mode=mode,mean=m,var= v)
 	elif mode == "s&p":
 		noisy = util.random_noise(img,mode=mode,amount=d)
 	else:
 		noisy = img
-	return noisy
+	return noisy,real_img
 
 ###################
 #################
