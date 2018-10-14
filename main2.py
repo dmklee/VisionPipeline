@@ -439,7 +439,7 @@ if __name__ == "__main__":
 	curv_data = np.empty((growth_steps))
 	path_data, = plt.plot([],[],'b-',linewidth=3.5)
 	anchor_data, = plt.plot([],[],'r^',markersize=6)
-
+	colorscale = plt.get_cmap('brg')
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
 		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=10)
@@ -463,13 +463,14 @@ if __name__ == "__main__":
 			# lModelTail = curve.getModeledTail(-1)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			# if i % 20 == 0:
-			# 	path = curve.path()
-			# 	path_data.set_data(path[:,1],path[:,0])
-			# 	anchors = np.vstack((curve.lAnchor,curve.rAnchor))
-			# 	anchor_data.set_data(anchors[:,1],anchors[:,0])
-			# 	plt.draw()
-			# 	plt.pause(0.001)
+			if i % 4 == 0:
+				path = curve.path()
+				path_data.set_data(path[:,1],path[:,0])
+				path_data.set_color(colorscale(curve.conf/0.2))
+				anchors = np.vstack((curve.lAnchor,curve.rAnchor))
+				anchor_data.set_data(anchors[:,1],anchors[:,0])
+				plt.draw()
+				plt.pause(0.001)
 
 		# path = curve.path()
 		# path_data.set_data(path[:,1],path[:,0])
@@ -497,7 +498,6 @@ if __name__ == "__main__":
 		ax[1].plot(np.full(i,np.pi/8),'k:')
 		ax[1].plot(Conf[:i],'g-')
 		ax[1].set_title('Tail Gradient Error over Time')
-		print(Conf[i-1])
 
 
 	# for path in paths:
