@@ -136,8 +136,7 @@ class basicCurve():
 		#right is 1, left is -1
 		self.lAnchor = tuple(seed)
 		self.rAnchor = tuple(seed)
-		self.c_grad = 0
-		self.c_loc = 0
+		self.conf = 0.0
 
 	def updateArchive(self):	
 		self.cArchive[2] = self.cArchive[1]
@@ -166,27 +165,26 @@ class basicCurve():
 			self.AOIs = basicCurve.getAOIs(spacing=1)
 		rd_err,rth_err = self.getGrowthErr(1)
 		ld_err,lth_err = self.getGrowthErr(-1)
+		if self.num_pts > 0:
+			self.conf += (rth_err+lth_err-self.conf)/self.num_pts
+		if (self.num_pts/20)**0.5 % 1 == 0:
+			self.setNewAnchor(1)
+			self.setNewAnchor(-1)
 		if self.status == 'dual':
 			self.expandDual()
 			if rd_err > 2:
 				self.revertToArchive()
 				self.status = 'left'
-				self.setNewAnchor(-1)
 			if ld_err > 2:
 				self.revertToArchive()
 				self.status = 'right'
-				self.setNewAnchor(1)
 		elif self.status =='right':
-			if (self.num_pts/20)**0.5 % 1 == 0:
-				self.setNewAnchor(1)
 			self.expandSingle(1)
 			rAnchor_err = self.getGrowthErr(1,self.rAnchor)[0]
 			if max(rd_err,ld_err,2*rAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'dead'
 		elif self.status == 'left':
-			if (self.num_pts/20)**0.5 % 1 == 0:
-				self.setNewAnchor(-1)
 			self.expandSingle(-1)
 			lAnchor_err = self.getGrowthErr(-1,self.lAnchor)[0]
 			if max(rd_err,ld_err,2*lAnchor_err) > 2:
@@ -194,10 +192,11 @@ class basicCurve():
 				self.status = 'dead'
 
 	def setNewAnchor(self,side):
+		age = self.cArchive.size-1
 		if side == 1:
-			self.rAnchor = self.rtail
+			self.rAnchor = tuple(self.rArchive[age,:])
 		else:
-			self.lAnchor = self.ltail
+			self.lAnchor = tuple(self.lArchive[age,:])
 
 	def getGrowthErr(self,side,pt=None):
 		if pt is None:
@@ -338,7 +337,7 @@ class basicCurve():
 						(-np.sin(direction),np.cos(direction))))
 		vec = np.dot(R,vec)
 		modeledTail = np.add(-side*np.sign(self.curv_avg)*vec,self.seed)
-		modeledGrad = self.tilt-side*th_prog
+		modeledGrad = self.tilt+th_prog
 		return modeledTail,modeledGrad
 
 	def sidepath(self,side,res=8):
@@ -420,22 +419,23 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	name = "many_circles.png"
+	name = "circle.png"
 	# name = 'spiral.png'
 	# name = 'linking_testbed.png'
-	img = testImage(mode='gaussian',v=0.00,name=name)
-	img = gaussianFilter(img,sigma=1)
+	img = testImage(mode='gaussian',v=0.1,name=name)
+	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,6))
 	plt.imshow(edges,cmap='gray')
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	seeds = edgeSniffer(edges,grouping=40,style='absolute')
-	# seeds = [(141,650),(170,678)]
-	# seeds = [seeds[1]]
+	# seeds = edgeSniffer(edges,grouping=400,style='absolute')
+	seeds = [(66,268)]
+	seeds = [seeds[0]]
+
 	paths = []
-	growth_steps = 400
+	growth_steps = 100
 	curv_data = np.empty((growth_steps))
 	path_data, = plt.plot([],[],'b-',linewidth=3.5)
 	anchor_data, = plt.plot([],[],'r^',markersize=6)
@@ -446,6 +446,7 @@ if __name__ == "__main__":
 		
 		DistErr = np.zeros((growth_steps,2))
 		ThErr = np.zeros((growth_steps,2))
+		Conf = np.zeros((growth_steps))
 		
 		for i in xrange(growth_steps):
 			if curve.status == 'dead':
@@ -455,13 +456,14 @@ if __name__ == "__main__":
 			curv_data[i] = curve.curv_avg
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
-			# DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
-			# ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
+			DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
+			ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
+			Conf[i] = curve.conf
 			# rModelTail = curve.getModeledTail(1)
 			# lModelTail = curve.getModeledTail(-1)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			# if i % 5 == 0:
+			# if i % 20 == 0:
 			# 	path = curve.path()
 			# 	path_data.set_data(path[:,1],path[:,0])
 			# 	anchors = np.vstack((curve.lAnchor,curve.rAnchor))
@@ -469,11 +471,11 @@ if __name__ == "__main__":
 			# 	plt.draw()
 			# 	plt.pause(0.001)
 
-		path = curve.path()
-		path_data.set_data(path[:,1],path[:,0])
-		paths.append(path)
-		plt.draw()
-		plt.pause(0.1)
+		# path = curve.path()
+		# path_data.set_data(path[:,1],path[:,0])
+		# paths.append(path)
+		# plt.draw()
+		# plt.pause(0.1)
 
 		# path = curve.path()
 		# path_data.set_data(path[:,1],path[:,0])
@@ -485,23 +487,23 @@ if __name__ == "__main__":
 		# plt.plot(curv_data,'g-')
 		# plt.title('curvature during growth')
 
-		# plt.figure(figsize=(10,8))
-		# plt.plot(DistErr[:,0],'r-',DistErr[:,1],'b-')
-		# plt.legend(('Right Side','Left Side'))
-		# plt.plot(curv_data,'g-')
-		# plt.title('Tail Distance Error over Time')
+		f, ax = plt.subplots(2,figsize=(10,8))
+		ax[0].plot(DistErr[:i,0],'r-',DistErr[:i,1],'b-')
+		ax[0].legend(('Right Side','Left Side'))
+		ax[0].set_title('Tail Distance Error over Time')
 
-		# plt.figure(figsize=(10,8))
-		# plt.plot(ThErr[:,0],'r-',ThErr[:,1],'b-')
-		# plt.legend(('Right Side','Left Side'))
-		# plt.plot(np.full(growth_steps,np.pi/8),'k:')
-		# plt.title('Tail Gradient Error over Time')
+		ax[1].plot(ThErr[:i,0],'r-',ThErr[:i,1],'b-')
+		ax[1].legend(('Right Side','Left Side'))
+		ax[1].plot(np.full(i,np.pi/8),'k:')
+		ax[1].plot(Conf[:i],'g-')
+		ax[1].set_title('Tail Gradient Error over Time')
+		print(Conf[i-1])
 
 
-	for path in paths:
-		if path.size > 10:
-			plt.plot(path[:,1],path[:,0],'b-',markersize=3.5)
-	plt.draw()
+	# for path in paths:
+	# 	if path.size > 10:
+	# 		plt.plot(path[:,1],path[:,0],'b-',markersize=3.5)
+	# plt.draw()
 	plt.show()
 
 # add confidence to curves
