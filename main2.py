@@ -165,6 +165,11 @@ class basicCurve():
 			self.AOIs = basicCurve.getAOIs(spacing=1)
 		rd_err,rth_err = self.getGrowthErr(1)
 		ld_err,lth_err = self.getGrowthErr(-1)
+		if self.num_pts > 10:
+			rAnchor_err = self.getGrowthErr(1,self.rAnchor)[0]
+			lAnchor_err = self.getGrowthErr(-1,self.lAnchor)[0]
+		else:
+			rAnchor_err,lAnchor_err = 0.0,0.0
 		if self.num_pts > 0:
 			th_err = rth_err+lth_err
 			if self.status=='left':
@@ -177,21 +182,19 @@ class basicCurve():
 			self.setNewAnchor(-1)
 		if self.status == 'dual':
 			self.expandDual()
-			if rd_err > 2:
+			if max(rd_err,2*rAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'left'
-			if ld_err > 2:
+			if max(ld_err,2*lAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'right'
 		elif self.status =='right':
-			self.expandSingle(1)
-			rAnchor_err = self.getGrowthErr(1,self.rAnchor)[0]
+			self.expandSingle(1)			
 			if max(rd_err,ld_err,2*rAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'dead'
 		elif self.status == 'left':
 			self.expandSingle(-1)
-			lAnchor_err = self.getGrowthErr(-1,self.lAnchor)[0]
 			if max(rd_err,ld_err,2*lAnchor_err) > 2:
 				self.revertToArchive()
 				self.status = 'dead'
@@ -424,8 +427,8 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	# name = "circle.png"
-	name = 'spiral.png'
+	# name = "simple_shapes.png"
+	name = 'ellipse.png'
 	# name = 'linking_testbed.png'
 	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
@@ -435,17 +438,17 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	seeds = edgeSniffer(edges,grouping=20,style='absolute')
-	# seeds = [(113,239)]
-	# seeds = [seeds[0]]
+	# seeds = edgeSniffer(edges,grouping=40,style='absolute')
+	seeds = [(83,325)]
+	seeds = [seeds[0]]
 
 	paths = []
 	confs = []
 	growth_steps = 400
 	curv_data = np.empty((growth_steps))
-	path_data, = plt.plot([],[],'b-',linewidth=3.5)
+	path_data, = plt.plot([],[],'b-',linewidth=2.5)
 	anchor_data, = plt.plot([],[],'r^',markersize=6)
-	colorscale = plt.get_cmap('jet')
+	colorscale = plt.get_cmap('Reds')
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
 		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=5)
@@ -469,18 +472,18 @@ if __name__ == "__main__":
 			# lModelTail = curve.getModeledTail(-1)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			# if i % 4 == 0:
-			# 	path = curve.path()
-			# 	path_data.set_data(path[:,1],path[:,0])
-			# 	path_data.set_color(colorscale(8*curve.conf/np.pi))
-			# 	anchors = np.vstack((curve.lAnchor,curve.rAnchor))
-			# 	anchor_data.set_data(anchors[:,1],anchors[:,0])
-			# 	plt.draw()
-			# 	plt.pause(0.001)
+			if i % 1 == 0:
+				path = curve.path()
+				path_data.set_data(path[:,1],path[:,0])
+				path_data.set_color(colorscale(1-8*curve.conf/np.pi))
+				anchors = np.vstack((curve.lAnchor,curve.rAnchor))
+				anchor_data.set_data(anchors[:,1],anchors[:,0])
+				plt.draw()
+				plt.pause(0.001)
 
 		path = curve.path()
 		path_data.set_data(path[:,1],path[:,0])
-		path_data.set_color(colorscale(8*curve.conf/np.pi))
+		path_data.set_color(colorscale(1-8*curve.conf/np.pi))
 		plt.draw()
 		plt.pause(0.001)
 
@@ -505,22 +508,22 @@ if __name__ == "__main__":
 
 	for i,path in enumerate(paths):
 		if path.size > 1:
-			c = 8*confs[i]/np.pi
+			c = 1-8*confs[i]/np.pi
 			plt.plot(path[:,1],path[:,0],'-',color=colorscale(c),linewidth=1.5)
 	plt.draw()
 	plt.show()
 
-# add confidence to curves
-#	i dont think it should be dependent on the absolute edge likelihood collected
-#	instead, it should look at agreement amongst the collected edgels, using intuition
-#	from NFA
-
 # adjust distance error thresholds based on curvature, a bigger circle can accept larger error
 
-# allow broken edges to spawn new curve seeds
+# keep two anchors on tab
+
+# allow broken edges to spawn new curve seeds, see if we can span a circle, ellipse with one seed
 
 # allow nearby seeds to conquer each other or join existing curves
 
 # create a system for linking touching curves
 
-# better sampling approach, allow for seeds to move
+# better sampling approach
+
+# allow for seeds to move
+
