@@ -166,7 +166,12 @@ class basicCurve():
 		rd_err,rth_err = self.getGrowthErr(1)
 		ld_err,lth_err = self.getGrowthErr(-1)
 		if self.num_pts > 0:
-			self.conf += (rth_err+lth_err-self.conf)/self.num_pts
+			th_err = rth_err+lth_err
+			if self.status=='left':
+				th_err -= rth_err
+			if self.status=='right':
+				th_err -= th_err
+			self.conf += (th_err-self.conf)/self.num_pts
 		if (self.num_pts/20)**0.5 % 1 == 0:
 			self.setNewAnchor(1)
 			self.setNewAnchor(-1)
@@ -419,10 +424,10 @@ class basicCurve():
 		return int(index+1)%8
 
 if __name__ == "__main__":
-	name = "circle.png"
-	# name = 'spiral.png'
+	# name = "circle.png"
+	name = 'spiral.png'
 	# name = 'linking_testbed.png'
-	img = testImage(mode='gaussian',v=0.1,name=name)
+	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
 	plt.figure(figsize=(10,6))
@@ -430,19 +435,20 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	# seeds = edgeSniffer(edges,grouping=400,style='absolute')
-	seeds = [(66,268)]
-	seeds = [seeds[0]]
+	seeds = edgeSniffer(edges,grouping=20,style='absolute')
+	# seeds = [(113,239)]
+	# seeds = [seeds[0]]
 
 	paths = []
-	growth_steps = 100
+	confs = []
+	growth_steps = 400
 	curv_data = np.empty((growth_steps))
 	path_data, = plt.plot([],[],'b-',linewidth=3.5)
 	anchor_data, = plt.plot([],[],'r^',markersize=6)
-	colorscale = plt.get_cmap('brg')
+	colorscale = plt.get_cmap('jet')
 	for seed in seeds:
 		curve = basicCurve(seed,edges,gradients)
-		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=10)
+		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=5)
 		
 		DistErr = np.zeros((growth_steps,2))
 		ThErr = np.zeros((growth_steps,2))
@@ -453,63 +459,63 @@ if __name__ == "__main__":
 				break
 			curve.expand()
 
-			curv_data[i] = curve.curv_avg
+			# curv_data[i] = curve.curv_avg
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=2.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=2.5)
-			DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
-			ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
-			Conf[i] = curve.conf
+			# DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
+			# ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
+			# Conf[i] = curve.conf
 			# rModelTail = curve.getModeledTail(1)
 			# lModelTail = curve.getModeledTail(-1)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			if i % 4 == 0:
-				path = curve.path()
-				path_data.set_data(path[:,1],path[:,0])
-				path_data.set_color(colorscale(curve.conf/0.2))
-				anchors = np.vstack((curve.lAnchor,curve.rAnchor))
-				anchor_data.set_data(anchors[:,1],anchors[:,0])
-				plt.draw()
-				plt.pause(0.001)
+			# if i % 4 == 0:
+			# 	path = curve.path()
+			# 	path_data.set_data(path[:,1],path[:,0])
+			# 	path_data.set_color(colorscale(8*curve.conf/np.pi))
+			# 	anchors = np.vstack((curve.lAnchor,curve.rAnchor))
+			# 	anchor_data.set_data(anchors[:,1],anchors[:,0])
+			# 	plt.draw()
+			# 	plt.pause(0.001)
 
-		# path = curve.path()
-		# path_data.set_data(path[:,1],path[:,0])
-		# paths.append(path)
-		# plt.draw()
-		# plt.pause(0.1)
+		path = curve.path()
+		path_data.set_data(path[:,1],path[:,0])
+		path_data.set_color(colorscale(8*curve.conf/np.pi))
+		plt.draw()
+		plt.pause(0.001)
 
-		# path = curve.path()
-		# path_data.set_data(path[:,1],path[:,0])
-		# paths.append(path)
-		# plt.draw()
-		# plt.pause(0.001)
+		paths.append(path)
+		confs.append(curve.conf)
 
 		# plt.figure(figsize=(10,8))
 		# plt.plot(curv_data,'g-')
 		# plt.title('curvature during growth')
 
-		f, ax = plt.subplots(2,figsize=(10,8))
-		ax[0].plot(DistErr[:i,0],'r-',DistErr[:i,1],'b-')
-		ax[0].legend(('Right Side','Left Side'))
-		ax[0].set_title('Tail Distance Error over Time')
+		# f, ax = plt.subplots(2,figsize=(10,8))
+		# ax[0].plot(DistErr[:i,0],'r-',DistErr[:i,1],'b-')
+		# ax[0].legend(('Right Side','Left Side'))
+		# ax[0].set_title('Tail Distance Error over Time')
 
-		ax[1].plot(ThErr[:i,0],'r-',ThErr[:i,1],'b-')
-		ax[1].legend(('Right Side','Left Side'))
-		ax[1].plot(np.full(i,np.pi/8),'k:')
-		ax[1].plot(Conf[:i],'g-')
-		ax[1].set_title('Tail Gradient Error over Time')
+		# ax[1].plot(ThErr[:i,0],'r-',ThErr[:i,1],'b-')
+		# ax[1].legend(('Right Side','Left Side'))
+		# ax[1].plot(np.full(i,np.pi/8),'k:')
+		# ax[1].plot(Conf[:i],'g-')
+		# ax[1].set_title('Tail Gradient Error over Time')
 
 
-	# for path in paths:
-	# 	if path.size > 10:
-	# 		plt.plot(path[:,1],path[:,0],'b-',markersize=3.5)
-	# plt.draw()
+	for i,path in enumerate(paths):
+		if path.size > 1:
+			c = 8*confs[i]/np.pi
+			plt.plot(path[:,1],path[:,0],'-',color=colorscale(c),linewidth=1.5)
+	plt.draw()
 	plt.show()
 
 # add confidence to curves
 #	i dont think it should be dependent on the absolute edge likelihood collected
 #	instead, it should look at agreement amongst the collected edgels, using intuition
 #	from NFA
+
+# adjust distance error thresholds based on curvature, a bigger circle can accept larger error
 
 # allow broken edges to spawn new curve seeds
 
