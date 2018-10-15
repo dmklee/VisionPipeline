@@ -138,6 +138,8 @@ class basicCurve():
 		self.rAnchor = tuple(seed)
 		self.conf = 0.0
 
+		self.children = []
+
 	def updateArchive(self):	
 		self.cArchive[2] = self.cArchive[1]
 		self.cArchive[1] = self.cArchive[0]
@@ -428,7 +430,7 @@ class basicCurve():
 
 if __name__ == "__main__":
 	# name = "simple_shapes.png"
-	name = 'ellipse.png'
+	name = 'small_circle.png'
 	# name = 'linking_testbed.png'
 	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
@@ -438,8 +440,8 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	# seeds = edgeSniffer(edges,grouping=40,style='absolute')
-	seeds = [(83,325)]
+	seeds = edgeSniffer(edges,grouping=400,style='absolute')
+	# seeds = [(83,325)]
 	seeds = [seeds[0]]
 
 	paths = []
@@ -449,7 +451,17 @@ if __name__ == "__main__":
 	path_data, = plt.plot([],[],'b-',linewidth=2.5)
 	anchor_data, = plt.plot([],[],'r^',markersize=6)
 	colorscale = plt.get_cmap('Reds')
-	for seed in seeds:
+
+	seed_id = 0
+	while True:
+		if seed_id > 6:
+			break
+		try: 
+			seed = seeds[seed_id]
+		except IndexError:
+			break
+		seed_id += 1
+
 		curve = basicCurve(seed,edges,gradients)
 		plt.plot(curve.seed[1],curve.seed[0],'r.',markersize=5)
 		
@@ -459,6 +471,8 @@ if __name__ == "__main__":
 		
 		for i in xrange(growth_steps):
 			if curve.status == 'dead':
+				seeds.append(curve.rtail)
+				# seeds.append(curve.ltail)
 				break
 			curve.expand()
 
@@ -472,7 +486,7 @@ if __name__ == "__main__":
 			# lModelTail = curve.getModeledTail(-1)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			if i % 1 == 0:
+			if i % 5 == 0:
 				path = curve.path()
 				path_data.set_data(path[:,1],path[:,0])
 				path_data.set_color(colorscale(1-8*curve.conf/np.pi))
