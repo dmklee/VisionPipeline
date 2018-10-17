@@ -430,7 +430,7 @@ class basicCurve():
 
 if __name__ == "__main__":
 	# name = "simple_shapes.png"
-	name = 'small_circle.png'
+	name = 'occlusion2.png'
 	# name = 'linking_testbed.png'
 	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
