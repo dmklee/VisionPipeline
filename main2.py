@@ -138,11 +138,6 @@ class basicCurve():
 		self.rAnchor = tuple(seed)
 		self.conf = 0.0
 
-		self.children = []
-
-		self.lAOI_err = 0.0
-		self.rAOI_err = 0.0
-
 	def updateArchive(self):	
 		self.cArchive[2] = self.cArchive[1]
 		self.cArchive[1] = self.cArchive[0]
@@ -212,18 +207,24 @@ class basicCurve():
 			self.lAnchor = tuple(self.lArchive[age,:])
 
 	def getGrowthErr(self,side,pt=None):
+		isAnchor = False
 		if pt is None:
 			realTail = self.rtail if side==1 else self.ltail
 		else:
+			isAnchor = True
 			realTail = pt
 		modelTail, modelGrad = self.getModeledTail(side,pt)
 		vec_err = np.subtract(realTail,modelTail)
 		d_err = np.linalg.norm(vec_err)
-		if side == 1:
+		if side == 1 and not isAnchor:
 			self.rDir = modelGrad-side*np.pi/2
-		else:
+			self.rModelTail = (0.5+modelTail).astype(int)
+		elif side == -1 and not isAnchor:
 			self.lDir = modelGrad-side*np.pi/2
+			self.lModelTail = (0.5+modelTail).astype(int)
 		th_err = abs(angleDiff(modelGrad,self.gradients[realTail]))
+		if th_err > np.pi/2:
+			th_err = abs(np.pi-th_err)
 		return d_err, th_err
 
 	def getCnewSingle(self,side,new_pt):
@@ -235,15 +236,6 @@ class basicCurve():
 		alpha = np.arccos(np.dot(vec_StoNew,uvec_tilt)/q_StoNew)
 		theta = 2*(np.pi-alpha)
 		c_loc = -np.sin(theta)/(q_StoNew*np.sin(alpha))
-		# c_loc = 2*np.dot(vec_StoNew,uvec_tilt)/(q_StoNew)**2
-
-		# th_diff = angleDiff(new_tilt,self.tilt)
-		# c_grad = self.side*2*np.sin(th_diff/2.)/q_StoNew
-
-		# self.c_grad = c_grad
-		# self.c_loc = c_loc
-		# z = np.clip((self.num_pts)/20,0,1.0)
-		# c_new = z*c_loc+(1-z)*c_grad
 		return -side*c_loc
 
 	def getCnewDual(self):
@@ -274,27 +266,28 @@ class basicCurve():
 			c_new = -self.getCnewSingle(side,self.ltail)
 		else:
 			c_new = self.getCnewDual()
-		alpha = 0.3# if self.num_pts <= 10 else 1/self.num_pts
-		self.curv_avg += alpha*(c_new-self.curv_avg)
-		# self.curv_avg = -1/150.
+		self.curv_avg += 0.3*(c_new-self.curv_avg)
 	
 	def growTail(self,side,pt):
-		direction = self.gradients[pt]-side*np.pi/2.
-		# if self.num_pts > 20:
-		# 	if side == 1:
-		# 		direction -= self.rAOI_err
-		# 	else:
-		# 		direction -= self.lAOI_err
+		pt_old = pt
+		if self.num_pts > 20:
+			if side == 1:
+				direction = self.rDir
+				pt = tuple(self.rModelTail)
+			else:
+				direction = self.lDir
+				pt = tuple(self.lModelTail)
+		else:	
+			direction = self.gradients[pt]-side*np.pi/2.
 		AOI_id = basicCurve.selectAOI(direction)
 		AOI = self.AOIs[AOI_id]
 		new_pt = self.sampleAOI(AOI,pt)
-		vec = np.subtract(new_pt,pt)
-		err = angleDiff(np.arctan2(vec[1],vec[0]),direction)
-		print(err)
-		if side==1:
-			self.rAOI_err = err
-		else:
-			self.lAOI_err = err
+		if self.edges[new_pt] < 0.5*self.edges[pt]:
+			self.revertToArchive()
+			if self.status == 'dual':
+				self.status = 'right' if side == -1 else 'left'
+			else:
+				self.status = 'dead'
 		self.num_pts += 1
 		return new_pt
 
@@ -460,9 +453,9 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	# seeds = edgeSniffer(edges,grouping=400,style='absolute')
-	seeds = [(130,152)]
-	seeds = [seeds[0]]
+	# seeds = edgeSniffer(edges,grouping=40,style='absolute')
+	seeds = [(42,170),(130,152),(183,311),(329,400)]
+	# seeds = [seeds[0]]
 
 	paths = []
 	confs = []
@@ -474,7 +467,7 @@ if __name__ == "__main__":
 
 	seed_id = 0
 	while True:
-		if seed_id > 0:
+		if seed_id > 20:
 			break
 		try: 
 			seed = seeds[seed_id]
@@ -491,29 +484,29 @@ if __name__ == "__main__":
 		
 		for i in xrange(growth_steps):
 			if curve.status == 'dead':
-				seeds.append(curve.rtail)
+				# seeds.append(curve.rtail)
 				# seeds.append(curve.ltail)
 				break
 			curve.expand()
 
 			# curv_data[i] = curve.curv_avg
-			plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=3.5)
-			plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=3.5)
-			# DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
-			# ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
-			# Conf[i] = curve.conf
-			# rModelTail = curve.getModeledTail(1)
-			# lModelTail = curve.getModeledTail(-1)
-			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=2.5)
-			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=2.5)
-			if i % 1 == 0:
+			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=3.5)
+			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=3.5)
+			DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
+			ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
+			Conf[i] = curve.conf
+			# rModelTail = (0.5+curve.getModeledTail(1)[0]).astype(int)
+			# lModelTail = (0.5+curve.getModeledTail(-1)[0]).astype(int)
+			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=3.5)
+			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=3.5)
+			if i % 10 == 0:
 				path = curve.path()
 				path_data.set_data(path[:,1],path[:,0])
 				path_data.set_color(colorscale(1-8*curve.conf/np.pi))
 				anchors = np.vstack((curve.lAnchor,curve.rAnchor))
 				anchor_data.set_data(anchors[:,1],anchors[:,0])
 				plt.draw()
-				plt.pause(0.1)
+				plt.pause(0.0001)
 
 		path = curve.path()
 		path_data.set_data(path[:,1],path[:,0])
