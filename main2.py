@@ -161,7 +161,7 @@ class basicCurve():
 
 	def expand(self):
 		self.updateArchive()
-		if self.num_pts == 20:
+		if self.num_pts == 15:
 			self.AOIs = basicCurve.getAOIs(spacing=1)
 		rd_err,rth_err = self.getGrowthErr(1)
 		ld_err,lth_err = self.getGrowthErr(-1)
@@ -269,20 +269,24 @@ class basicCurve():
 		self.curv_avg += 0.3*(c_new-self.curv_avg)
 	
 	def growTail(self,side,pt):
-		pt_old = pt
-		if self.num_pts > 20:
+		direction = self.gradients[pt]-side*np.pi/2.
+		AOI_id = basicCurve.selectAOI(direction)
+		AOI = self.AOIs[AOI_id]
+		new_pt = self.sampleAOI(AOI,pt)
+		modelDir = self.rDir if side == 1 else self.lDir
+		if abs(angleDiff(modelDir+side*np.pi/2.,self.gradients[new_pt])) > np.pi/8:
 			if side == 1:
 				direction = self.rDir
 				pt = tuple(self.rModelTail)
 			else:
 				direction = self.lDir
 				pt = tuple(self.lModelTail)
-		else:	
-			direction = self.gradients[pt]-side*np.pi/2.
-		AOI_id = basicCurve.selectAOI(direction)
-		AOI = self.AOIs[AOI_id]
-		new_pt = self.sampleAOI(AOI,pt)
-		if self.edges[new_pt] < 0.5*self.edges[pt]:
+			AOI_id = basicCurve.selectAOI(direction)
+			AOI = self.AOIs[AOI_id]
+			new_pt = self.sampleAOI(AOI,pt)
+
+		old_pt = self.rArchive[2,:] if side==1 else self.lArchive[2,:]
+		if self.edges[new_pt] < self.edges[tuple(old_pt)]/4:
 			self.revertToArchive()
 			if self.status == 'dual':
 				self.status = 'right' if side == -1 else 'left'
@@ -394,7 +398,7 @@ class basicCurve():
 
 	def sampleAOI(self,AOI,center):
 		points = AOI+np.array(center)
-		best_val = 0
+		best_val = -1
 		best_pt = (0,0)
 		for pt in points:
 			pt = tuple(pt)
@@ -441,10 +445,16 @@ class basicCurve():
 		index = (angle + np.pi/8)//(np.pi/4)
 		return int(index+1)%8
 
+def get_vec(pt,angle,l=2):
+	vec = np.empty((2,2))
+	vec[:,0] = pt[0],pt[0]+l*np.sin(angle)
+	vec[:,1] = pt[1],pt[1]+l*np.cos(angle)
+	return vec
+
 if __name__ == "__main__":
 	# name = "simple_shapes.png"
 	name = 'occlusion2.png'
-	# name = 'linking_testbed.png'
+	# name = 'ellipses.png'
 	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
@@ -453,9 +463,10 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	# seeds = edgeSniffer(edges,grouping=40,style='absolute')
-	seeds = [(42,170),(130,152),(183,311),(329,400)]
+	seeds = edgeSniffer(edges,grouping=80,style='absolute')
+	# seeds = [(153,560),(42,170),(130,152),(183,311),(329,400)]
 	# seeds = [seeds[0]]
+	# print(seeds)
 
 	paths = []
 	confs = []
@@ -467,7 +478,7 @@ if __name__ == "__main__":
 
 	seed_id = 0
 	while True:
-		if seed_id > 20:
+		if seed_id > 40:
 			break
 		try: 
 			seed = seeds[seed_id]
@@ -483,6 +494,7 @@ if __name__ == "__main__":
 		Conf = np.zeros((growth_steps))
 		
 		for i in xrange(growth_steps):
+			print(curve.rtail,curve.ltail)
 			if curve.status == 'dead':
 				# seeds.append(curve.rtail)
 				# seeds.append(curve.ltail)
@@ -492,21 +504,25 @@ if __name__ == "__main__":
 			# curv_data[i] = curve.curv_avg
 			# plt.plot(curve.rtail[1],curve.rtail[0],'g.',markersize=3.5)
 			# plt.plot(curve.ltail[1],curve.ltail[0],'g.',markersize=3.5)
-			DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
-			ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
-			Conf[i] = curve.conf
+			# rgrad = get_vec(curve.rtail,curve.gradients[curve.rtail])
+			# lgrad = get_vec(curve.ltail,curve.gradients[curve.ltail])
+			# plt.plot(rgrad[:,1],rgrad[:,0],'r-')
+			# plt.plot(lgrad[:,1],lgrad[:,0],'r-')
+			# DistErr[i] = curve.getGrowthErr(1)[0],curve.getGrowthErr(-1)[0]
+			# ThErr[i] = curve.getGrowthErr(1)[1],curve.getGrowthErr(-1)[1]
+			# Conf[i] = curve.conf
 			# rModelTail = (0.5+curve.getModeledTail(1)[0]).astype(int)
 			# lModelTail = (0.5+curve.getModeledTail(-1)[0]).astype(int)
 			# plt.plot(rModelTail[1],rModelTail[0],'r.',markersize=3.5)
 			# plt.plot(lModelTail[1],lModelTail[0],'r.',markersize=3.5)
-			if i % 10 == 0:
-				path = curve.path()
-				path_data.set_data(path[:,1],path[:,0])
-				path_data.set_color(colorscale(1-8*curve.conf/np.pi))
-				anchors = np.vstack((curve.lAnchor,curve.rAnchor))
-				anchor_data.set_data(anchors[:,1],anchors[:,0])
-				plt.draw()
-				plt.pause(0.0001)
+			# if i % 10 == 0:
+			# 	path = curve.path()
+			# 	path_data.set_data(path[:,1],path[:,0])
+			# 	path_data.set_color(colorscale(1-8*curve.conf/np.pi))
+			# 	# anchors = np.vstack((curve.lAnchor,curve.rAnchor))
+			# 	# anchor_data.set_data(anchors[:,1],anchors[:,0])
+			# 	plt.draw()
+			# 	plt.pause(0.0001)
 
 		path = curve.path()
 		path_data.set_data(path[:,1],path[:,0])
@@ -518,7 +534,7 @@ if __name__ == "__main__":
 		confs.append(curve.conf)
 
 		# plt.figure(figsize=(10,8))
-		# plt.plot(curv_data,'g-')
+		# plt.plot(curv_data[:i],'g-')
 		# plt.title('curvature during growth')
 
 		# f, ax = plt.subplots(2,figsize=(10,8))
