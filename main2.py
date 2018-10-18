@@ -138,19 +138,22 @@ class basicCurve():
 		self.rAnchor = tuple(seed)
 		self.conf = 0.0
 
+	def reseed(self):
+
+
 	def updateArchive(self):	
-		self.cArchive[2] = self.cArchive[1]
-		self.cArchive[1] = self.cArchive[0]
-		self.cArchive[0] = self.curv_avg
-		self.tArchive[2] = self.tArchive[1]
-		self.tArchive[1] = self.tArchive[0]
-		self.tArchive[0] = self.tilt
-		self.rArchive[2,:] = self.rArchive[1,:]
-		self.rArchive[1,:] = self.rArchive[0,:]
-		self.rArchive[0,:] = self.rtail
-		self.lArchive[2,:] = self.lArchive[1,:]
-		self.lArchive[1,:] = self.lArchive[0,:]
-		self.lArchive[0,:] = self.ltail
+		self.cArchive[2] 	= self.cArchive[1]
+		self.cArchive[1] 	= self.cArchive[0]
+		self.cArchive[0] 	= self.curv_avg
+		self.tArchive[2] 	= self.tArchive[1]
+		self.tArchive[1] 	= self.tArchive[0]
+		self.tArchive[0] 	= self.tilt
+		self.rArchive[2,:] 	= self.rArchive[1,:]
+		self.rArchive[1,:] 	= self.rArchive[0,:]
+		self.rArchive[0,:] 	= self.rtail
+		self.lArchive[2,:] 	= self.lArchive[1,:]
+		self.lArchive[1,:] 	= self.lArchive[0,:]
+		self.lArchive[0,:] 	= self.ltail
 
 	def revertToArchive(self):
 		age = self.cArchive.size-1
@@ -453,8 +456,8 @@ def get_vec(pt,angle,l=2):
 
 if __name__ == "__main__":
 	# name = "simple_shapes.png"
-	name = 'occlusion2.png'
-	# name = 'ellipses.png'
+	# name = 'occlusion2.png'
+	name = 'ellipses.png'
 	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
@@ -477,6 +480,7 @@ if __name__ == "__main__":
 	colorscale = plt.get_cmap('Reds')
 
 	seed_id = 0
+
 	while True:
 		if seed_id > 40:
 			break
@@ -494,7 +498,6 @@ if __name__ == "__main__":
 		Conf = np.zeros((growth_steps))
 		
 		for i in xrange(growth_steps):
-			print(curve.rtail,curve.ltail)
 			if curve.status == 'dead':
 				# seeds.append(curve.rtail)
 				# seeds.append(curve.ltail)
@@ -525,10 +528,10 @@ if __name__ == "__main__":
 			# 	plt.pause(0.0001)
 
 		path = curve.path()
-		path_data.set_data(path[:,1],path[:,0])
-		path_data.set_color(colorscale(1-8*curve.conf/np.pi))
-		plt.draw()
-		plt.pause(0.001)
+		# path_data.set_data(path[:,1],path[:,0])
+		# path_data.set_color(colorscale(1-8*curve.conf/np.pi))
+		# plt.draw()
+		# plt.pause(0.001)
 
 		paths.append(path)
 		confs.append(curve.conf)
