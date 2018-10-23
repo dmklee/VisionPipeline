@@ -568,10 +568,10 @@ class extCurve(basicCurve):
 		return paths
 
 if __name__ == "__main__":
-	# name = "simple_shapes.png"
-	name = 'ellipse.png'
-	# name = 'circle.png'
-	img = testImage(mode='gaussian',v=0.01,name=name)
+	name = "simple_shapes.png"
+	# name = 'occlusion.png'
+	name = 'ellipses2.png'
+	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
 	curve_map = np.zeros(edges.shape)
@@ -580,7 +580,7 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	seed = edgeSniffer(edges,grouping=400,style='absolute')[0]
+	seed = edgeSniffer(edges,grouping=200,style='absolute')[0]
 	# seed = (130,140)
 
 	paths = []
@@ -593,7 +593,7 @@ if __name__ == "__main__":
 	for path in paths:
 		plt.plot(path[:,1],path[:,0],'-',linewidth=3.5)
 		plt.draw()
-		plt.pause(0.1)
+		plt.pause(0.01)
 	plt.show()
 
 # adjust distance error thresholds based on curvature, a bigger circle can accept larger error

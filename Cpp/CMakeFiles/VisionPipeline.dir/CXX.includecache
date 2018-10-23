@@ -6,6 +6,14 @@
 
 #IncludeRegexTransform: 
 
+/home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
+opencv2/opencv.hpp
+-
+
+/home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
+opencv2/opencv.hpp
+-
+
 /home/david/Desktop/VisionPipeline/Cpp/VisionPipeline.cpp
 stdio.h
 -
@@ -13,6 +21,10 @@ opencv2/opencv.hpp
 -
 ctime
 -
+Transformations.hpp
+/home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
+EdgeDrawing.hpp
+/home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 
 /usr/local/include/opencv/cxcore.h
 opencv2/core/core_c.h
