@@ -86,6 +86,7 @@ void edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap, Mat& edgeMap,
 
 void sortAnchors(pt_list& anchorList, Mat& grad, pt_list& dst) {
   // return a list going from highest to lowest grad value
+  std::copy(anchorList.begin(),anchorList.end(),back_inserter(dst));
   return;
 }
 
