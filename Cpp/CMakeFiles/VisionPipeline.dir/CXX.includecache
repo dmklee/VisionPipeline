@@ -9,6 +9,12 @@
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 opencv2/opencv.hpp
 -
+vector
+-
+array
+-
+stdio.h
+-
 
 /home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
 opencv2/opencv.hpp
