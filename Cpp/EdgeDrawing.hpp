@@ -60,26 +60,29 @@ void extractAnchors(Mat& grad,Mat& dirMap,
     for (int j = 1; j < (grad.cols-1); j += scanInterval) {
       if (isAnchor(i,j,grad,dirMap, gradThreshold, anchorThreshold)) {
         anchorList.push_back({i,j});
-        // std::cout << dirMap.at<ushort>(i,j) << "\n";
-        // std::cout << grad.at<ushort>(i-1,j-1)*255/32767 << ",";
-        // std::cout << grad.at<ushort>(i-1,j)*255/32767 << ",";
-        // std::cout << grad.at<ushort>(i-1,j+1)*255/32767 << "\n";
-        // std::cout << grad.at<ushort>(i,j-1)*255/32767 << ",";
-        // std::cout << grad.at<ushort>(i,j)*255/32767 << ",";
-        // std::cout << grad.at<ushort>(i,j+1)*255/32767 << "\n";
-        // std::cout << grad.at<ushort>(i+1,j-1)*255/32767 << ",";
-        // std::cout << grad.at<ushort>(i+1,j)*255/32767 << ",";
-        // std::cout << grad.at<ushort>(i+1,j+1)*255/32767 << "\n\n";
       }
     }
   }
   return;
 }
 
-// void edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap, Mat& edgeMap,
-//                     edgeSeg_list& edgeSegments) {
-//   while
-// }
+void edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap, Mat& edgeMap,
+                    pt_list& edgeSeg) {
+  while (grad.at<ushort>(x,y) > 0 and edgeMap.at<ushort> == 0 and
+          dirMap.at<ushort> != 0) {
+    edgeMap.at<ushort> = 1;
+    if ((grad.at<ushort>(x-1,y-1) > grad.at<ushort>(x-1,y)) and
+          (grad.at<ushort>(x-1,y-1) > grad.at<ushort>(x-1,y+1))) {
+      --x; --y;
+    } else if ((grad.at<ushort>(x-1,y+1) > grad.at<ushort>(x-1,y)) and
+          (grad.at<ushort>(x-1,y+1) > grad.at<ushort>(x-1,y-1))) {
+      ++x; ++y;
+    } else{
+      --x;
+    }
+  }
+
+}
 
 void sortAnchors(pt_list& anchorList, Mat& grad, pt_list& dst) {
   // return a list going from highest to lowest grad value
