@@ -26,15 +26,24 @@ void computeGradAndDirectionMap(Mat& img_gray, Mat& grad, Mat& dirMap) {
   dirMap = grad_x >= grad_y;
 }
 
+bool isHorizontal(Mat& dirMap, int x, int y) {
+  return dirMap.at<ushort>(x,y) != 0;
+}
+
+bool isEdgel(Mat& edgeMap, int x, int y) {
+  return edgeMap.at<ushort>(anchor[0],anchor[1]) == 0;
+}
+
 bool isAnchor(int x, int y, Mat& grad, Mat& dirMap,
-              int gradThreshold, int anchorThreshold) {
+              int gradThreshold, int anchorThreshold)
+{
   int gradThreshold = 36;
   gradThreshold *= 32767/255;
   anchorThreshold *= 32767/255;
   if (grad.at<ushort>(x,y) < gradThreshold) {
     return false;
   }
-  if (dirMap.at<ushort>(x,y) != 0 ) {
+  if (isHorizontal(dirMap, x, y) ) {
     //horizontal
     if (((grad.at<ushort>(x,y)-grad.at<ushort>(x,y-1)) >= anchorThreshold) and
           ((grad.at<ushort>(x,y)-grad.at<ushort>(x,y+1)) >= anchorThreshold)) {
@@ -66,8 +75,9 @@ void extractAnchors(Mat& grad,Mat& dirMap,
   return;
 }
 
-void edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap, Mat& edgeMap,
-                    pt_list& edgeSeg) {
+void edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
+    Mat& edgeMap, pt_list& edgeSeg)
+{
   while (grad.at<ushort>(x,y) > 0 and edgeMap.at<ushort> == 0 and
           dirMap.at<ushort> != 0) {
     edgeMap.at<ushort> = 1;
@@ -100,17 +110,24 @@ void findEdgeSegments(Mat& grad, Mat& dirMap) {
   sortAnchors(anchorList, grad, anchorListSorted);
 
   for (const auto& anchor: anchorListSorted) {
-    if (edgeMap.at<ushort>(anchor[0],anchor[1]) == 0) {
-      if (horizontal) {
-        pt_list seg1 = edgelWalkLeft
+    if (~ isEdgel(edgeMap, anchor[0], anchor[1])) {
+      if (isHorizontal(dirMap, anchor[0], anchor[1])) {
+        pt_list seg1;
+        edgelWalkLeft(anchor[0],anchor[1], grad, dirMap, edgeMap, seg1)
         pt_list seg2 = edgelWalkRight
-      } else {
+      } else { // vertical
         pt_list seg1 = edgelWalkUp
         pt_list seg2 = edgelWalkDown
       }
     }
   }
 
+}
+
+void expandAnchor() {
+  if (isHorizontal(dirMap, x , y)) {
+
+  }
 }
 
 void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap,
