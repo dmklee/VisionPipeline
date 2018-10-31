@@ -30,10 +30,4 @@ void blur(Mat& img_gray, Mat& dst, Size ksize, double sigma) {
   return;
 }
 
-void applyGaussianFilter() {
-  return;
-}
-
-
-
 #endif
