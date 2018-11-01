@@ -7,8 +7,10 @@
 #include <algorithm>
 #include <stdio.h>
 
+typedef std::array<int,2> pt;
 typedef std::vector< std::array<int,2> > pt_list;
 typedef std::vector< pt_list > edgeSeg_list;
+
 
 void suppressNoise(Mat& img_gray, Mat& dst) {
   cv::Size ksize = {5,5};
@@ -78,11 +80,11 @@ void extractAnchors(Mat& grad,Mat& dirMap, pt_list& anchorList, int gradThreshol
   return;
 }
 
-bool edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
     Mat& edgeMap, pt_list& edgeSeg) {
   int last_move = 0;
   do {
-    edgeMap.at<uchar>( x , y ) = 75;
+    edgeMap.at<uchar>( x , y ) = 255;
     if ((grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x-1,y)) and
           (grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x-1,y+1))) {
       --x; --y;
@@ -105,11 +107,11 @@ bool edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-bool edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
                     Mat& edgeMap, pt_list& edgeSeg) {
   int last_move = 0;
   do {
-    edgeMap.at<uchar>( x , y ) = 75;
+    edgeMap.at<uchar>( x , y ) = 255;
     if ((grad.at<uchar>(x+1,y-1) > grad.at<uchar>(x+1,y)) and
           (grad.at<uchar>(x+1,y-1) > grad.at<uchar>(x+1,y+1))) {
       ++x; --y;
@@ -132,11 +134,11 @@ bool edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-bool edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
                     Mat& edgeMap, pt_list& edgeSeg) {
   int last_move = 0;
   do {
-    edgeMap.at<uchar>( x , y ) = 75;
+    edgeMap.at<uchar>( x , y ) = 255;
     if ((grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x,y-1)) and
           (grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x+1,y-1))) {
       --x; --y;
@@ -159,11 +161,11 @@ bool edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-bool edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
                     Mat& edgeMap, pt_list& edgeSeg) {
   int last_move = 0;
   do {
-    edgeMap.at<uchar>( x , y ) = 75;
+    edgeMap.at<uchar>( x , y ) = 255;
     if ((grad.at<uchar>(x-1,y+1) > grad.at<uchar>(x,y+1)) and
           (grad.at<uchar>(x-1,y+1) > grad.at<uchar>(x+1,y+1))) {
       --x; ++y;
@@ -192,35 +194,32 @@ void sortAnchors(pt_list& anchorList, Mat& grad, pt_list& dst) {
   return;
 }
 
-void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap) {
-  // Mat edgeMap = Mat(grad.rows,grad.cols,CV_8UC1, Scalar::all(0)); // should be all zeros with size of grad
-
-  pt_list anchorList;
-  extractAnchors(grad, dirMap, anchorList, 36, 8, 4);
-
-  pt_list anchorListSorted;
-  sortAnchors(anchorList, grad, anchorListSorted);
-  std::printf("I found %i anchors.\n", static_cast<int>(anchorList.size()));
-  for (const auto& anchor: anchorListSorted) {
-    if (!isOccupied(edgeMap, anchor[0], anchor[1])) {
-      if (isHorizontal(dirMap, anchor[0], anchor[1])) {
-        pt_list seg1, seg2;
-        edgelWalkLeft(anchor[0],anchor[1], grad, dirMap, edgeMap, seg1);
-        edgelWalkRight(anchor[0],anchor[1], grad, dirMap, edgeMap, seg2);
-      } else { // vertical
-        pt_list seg1, seg2;
-        edgelWalkUp(anchor[0],anchor[1], grad, dirMap, edgeMap, seg1);
-        edgelWalkDown(anchor[0],anchor[1], grad, dirMap, edgeMap, seg2);
-      }
-      edgeMap.at<uchar>(anchor[0],anchor[1]) = 255;
+int growSegment(Mat& grad, Mat& dirMap, Mat& edgeMap, pt& start,
+                edgeSeg_list& seg, bool was_Horizontal, int move_id) {
+  if (was_Horizontal) {
+    if (move_id == 1) {
+      return edgelWalkDown(start[0],start[1], grad, dirMap, edgeMap, seg);
+    } else if (move_id == -1) {
+      return edgelWalkUp(start[0],start[1], grad, dirMap, edgeMap, seg);
+    } else {
+      return 0;
+    }
+  } else {
+    if (move_id == 1) {
+      return edgelWalkRight(start[0],start[1],grad,dirMap,edgeMap, seg);
+    } else if (move_id == -1) {
+      return edgelWalkLeft(start[0],start[1],grad,dirMap,edgeMap, seg);
+    } else {
+      return 0;
     }
   }
 }
 
-void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, edgeSeg_list& dst) {
-  edgeSeg_list seg_A, seg_B;
+void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, pt_list& dst) {
+  pt_list seg_A, seg_B;
   int move_A, move_B;
   bool was_Horizontal;
+  edgeMap.at<uchar>(x,y) = 255;
   if (isHorizontal(dirMap, x , y)) {
     was_Horizontal = true;
     move_A = edgelWalkLeft(x,y,grad, dirMap, edgeMap, seg_A);
@@ -232,18 +231,44 @@ void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, edgeSeg_li
   }
   while (move_A != 0 and move_B != 0) {
     if (move_A != 0) {
-      move_A = growSegment(seg_A.back(), grad, dirMap, edgeMap, seg_A, was_Horizontal);
+      move_A = growSegment( grad, dirMap, edgeMap, seg_A.back(), seg_A,
+                            was_Horizontal, move_A);
     }
     if (move_B != 0) {
-      move_A = growSegment(seg_B.back(), grad, dirMap, edgeMap, seg_A, was_Horizontal);
+      move_B = growSegment( grad, dirMap, edgeMap, seg_B.back(), seg_B,
+                            was_Horizontal, move_B);
     }
+    was_Horizontal = !was_Horizontal;
   }
   dst.insert(dst.end(),seg_A.rbegin(), seg_A.rend());
   dst.push_back({x,y});
   dst.insert(dst.end(),seg_B.begin(),seg_B.end());
 }
 
-void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap);
+void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, pt_list& anchorList,
+                    edgeSeg_list& dst, int sizeThreshold = 3) {
+  pt_list new_edge;
+  for (const auto& anchor: anchorList) {
+    if (!isOccupied(edgeMap, anchor[0], anchor[1])) {
+      expandAnchor(grad,dirMap,edgeMap, anchor[0], anchor[1], new_edge);
+      if (static_cast<int>(dst.size()) > sizeThreshold) {
+        dst.push_back(new_edge);
+      }
+      new_edge.clear();
+    }
+  }
 
+}
+
+void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, edgeSeg_list& dst) {
+  pt_list anchorList;
+  extractAnchors(grad, dirMap, anchorList, 36, 8, 4);
+
+  pt_list anchorListSorted;
+  sortAnchors(anchorList, grad, anchorListSorted);
+  std::printf("I found %i anchors.\n", static_cast<int>(anchorList.size()));
+  expandAnchors(grad, dirMap, edgeMap, anchorListSorted, dst);
+  std::printf("I produced %i edge segments.\n", static_cast<int>(dst.size()));
+}
 
 #endif
