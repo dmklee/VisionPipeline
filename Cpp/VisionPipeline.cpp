@@ -17,7 +17,7 @@ int main(int argc, char** argv )
   computeGradAndDirectionMap(img,grad,dirMap);
 
   Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  edgeSeg_list edgeSegments;
+  segList_type edgeSegments;
   findEdgeSegments(grad, dirMap, edgeMap, edgeSegments);
 
   Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);

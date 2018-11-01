@@ -7,9 +7,9 @@
 #include <algorithm>
 #include <stdio.h>
 
-typedef std::array<int,2> pt;
-typedef std::vector< std::array<int,2> > pt_list;
-typedef std::vector< pt_list > edgeSeg_list;
+typedef std::array<int,2> pt_type;
+typedef std::vector< pt_type > seg_type;
+typedef std::vector< seg_type > segList_type;
 
 
 void suppressNoise(Mat& img_gray, Mat& dst) {
@@ -81,7 +81,7 @@ void extractAnchors(Mat& grad,Mat& dirMap, pt_list& anchorList, int gradThreshol
 }
 
 int edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
-    Mat& edgeMap, pt_list& edgeSeg) {
+    Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 255;
@@ -108,7 +108,7 @@ int edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
 }
 
 int edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
-                    Mat& edgeMap, pt_list& edgeSeg) {
+                    Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 255;
@@ -135,7 +135,7 @@ int edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
 }
 
 int edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
-                    Mat& edgeMap, pt_list& edgeSeg) {
+                    Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 255;
@@ -162,7 +162,7 @@ int edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
 }
 
 int edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
-                    Mat& edgeMap, pt_list& edgeSeg) {
+                    Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 255;
@@ -194,8 +194,8 @@ void sortAnchors(pt_list& anchorList, Mat& grad, pt_list& dst) {
   return;
 }
 
-int growSegment(Mat& grad, Mat& dirMap, Mat& edgeMap, pt& start,
-                edgeSeg_list& seg, bool was_Horizontal, int move_id) {
+int growSegment(Mat& grad, Mat& dirMap, Mat& edgeMap, pt_type& start,
+                seg_type& seg, bool was_Horizontal, int move_id) {
   if (was_Horizontal) {
     if (move_id == 1) {
       return edgelWalkDown(start[0],start[1], grad, dirMap, edgeMap, seg);
@@ -215,8 +215,8 @@ int growSegment(Mat& grad, Mat& dirMap, Mat& edgeMap, pt& start,
   }
 }
 
-void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, pt_list& dst) {
-  pt_list seg_A, seg_B;
+void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, seg_type& dst) {
+  seg_type seg_A, seg_B;
   int move_A, move_B;
   bool was_Horizontal;
   edgeMap.at<uchar>(x,y) = 255;
@@ -245,9 +245,9 @@ void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, pt_list& d
   dst.insert(dst.end(),seg_B.begin(),seg_B.end());
 }
 
-void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, pt_list& anchorList,
-                    edgeSeg_list& dst, int sizeThreshold = 3) {
-  pt_list new_edge;
+void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, seg_type& anchorList,
+                    segList_type& dst, int sizeThreshold = 3) {
+  seg_type new_edge;
   for (const auto& anchor: anchorList) {
     if (!isOccupied(edgeMap, anchor[0], anchor[1])) {
       expandAnchor(grad,dirMap,edgeMap, anchor[0], anchor[1], new_edge);
@@ -260,11 +260,11 @@ void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, pt_list& anchorList,
 
 }
 
-void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, edgeSeg_list& dst) {
-  pt_list anchorList;
+void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst) {
+  seg_type anchorList;
   extractAnchors(grad, dirMap, anchorList, 36, 8, 4);
 
-  pt_list anchorListSorted;
+  seg_type anchorListSorted;
   sortAnchors(anchorList, grad, anchorListSorted);
   std::printf("I found %i anchors.\n", static_cast<int>(anchorList.size()));
   expandAnchors(grad, dirMap, edgeMap, anchorListSorted, dst);
