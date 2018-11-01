@@ -6,6 +6,7 @@
 #include <array>
 #include <algorithm>
 #include <stdio.h>
+#include <ctime>
 
 typedef std::array<int,2> pt_type;
 typedef std::vector< pt_type > seg_type;
@@ -40,7 +41,6 @@ bool isOccupied(Mat& edgeMap, int x, int y) {
 
 bool isValidEdgel(Mat& grad, int x, int y) {
   if (x < 0 or y < 0 or x >= grad.rows or y >= grad.cols) {
-    std::printf("index error in isValidEdgel\n" );
     return false;
   }
   int threshold = 8;
@@ -66,7 +66,7 @@ bool isAnchor(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-void extractAnchors(Mat& grad,Mat& dirMap, pt_list& anchorList, int gradThreshold,
+void extractAnchors(Mat& grad,Mat& dirMap, seg_type& anchorList, int gradThreshold,
                     int anchorThreshold,int scanInterval) {
   // iterate over every "scanInterval"-th row and column
   // if isAnchor(pixel) then add to anchorList
@@ -188,9 +188,9 @@ int edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-void sortAnchors(pt_list& anchorList, Mat& grad, pt_list& dst) {
+void sortAnchors(seg_type& anchorList, Mat& grad, seg_type& dst) {
   // return a list going from highest to lowest grad value
-  std::copy(anchorList.begin(),anchorList.end(),back_inserter(dst));
+  std::copy(anchorList.begin(),anchorList.end(),std::back_inserter(dst));
   return;
 }
 
@@ -251,7 +251,7 @@ void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, seg_type& anchorList,
   for (const auto& anchor: anchorList) {
     if (!isOccupied(edgeMap, anchor[0], anchor[1])) {
       expandAnchor(grad,dirMap,edgeMap, anchor[0], anchor[1], new_edge);
-      if (static_cast<int>(dst.size()) > sizeThreshold) {
+      if (static_cast<int>(new_edge.size()) > sizeThreshold) {
         dst.push_back(new_edge);
       }
       new_edge.clear();
@@ -262,13 +262,18 @@ void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, seg_type& anchorList,
 
 void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst) {
   seg_type anchorList;
+  clock_t t = clock();
   extractAnchors(grad, dirMap, anchorList, 36, 8, 4);
-
+  t = clock()-t;
+  std::printf("I found %i anchors in %f ms.\n", static_cast<int>(anchorList.size()),
+              ((float)t)/CLOCKS_PER_SEC *1000.0);
   seg_type anchorListSorted;
   sortAnchors(anchorList, grad, anchorListSorted);
-  std::printf("I found %i anchors.\n", static_cast<int>(anchorList.size()));
+  t = clock();
   expandAnchors(grad, dirMap, edgeMap, anchorListSorted, dst);
-  std::printf("I produced %i edge segments.\n", static_cast<int>(dst.size()));
+  t = clock()-t;
+  std::printf("I produced %i edge segments in %f ms.\n", static_cast<int>(dst.size()),
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
 }
 
 #endif
