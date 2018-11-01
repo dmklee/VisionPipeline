@@ -8,7 +8,7 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  Mat image = imread("../Pics/circle.png", 1);
+  Mat image = imread("../Pics/ellipses.png", 1);
   Mat image_gray;
   cvtColor( image, image_gray, CV_BGR2GRAY );
 

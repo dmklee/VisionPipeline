@@ -4,6 +4,7 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <array>
+#include <algorithm>
 #include <stdio.h>
 
 typedef std::vector< std::array<int,2> > pt_list;
@@ -77,72 +78,112 @@ void extractAnchors(Mat& grad,Mat& dirMap, pt_list& anchorList, int gradThreshol
   return;
 }
 
-void edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
+bool edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
     Mat& edgeMap, pt_list& edgeSeg) {
+  int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 75;
     if ((grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x-1,y)) and
           (grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x-1,y+1))) {
       --x; --y;
+      last_move = -1;
     } else if ((grad.at<uchar>(x-1,y+1) > grad.at<uchar>(x-1,y)) and
           (grad.at<uchar>(x-1,y+1) > grad.at<uchar>(x-1,y-1))) {
       --x; ++y;
+      last_move = 1;
     } else{
       --x;
     }
+    edgeSeg.push_back({x,y});
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           !isHorizontal(dirMap,x,y));
+  if (isValidEdgel(grad,x,y) and !isOccupied(edgeMap,x,y)) {
+    return last_move;
+  } else {
+    edgeSeg.pop_back();
+    return 0;
+  }
 }
 
-void edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
+bool edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
                     Mat& edgeMap, pt_list& edgeSeg) {
+  int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 75;
     if ((grad.at<uchar>(x+1,y-1) > grad.at<uchar>(x+1,y)) and
           (grad.at<uchar>(x+1,y-1) > grad.at<uchar>(x+1,y+1))) {
       ++x; --y;
+      last_move = -1;
     } else if ((grad.at<uchar>(x+1,y+1) > grad.at<uchar>(x+1,y)) and
           (grad.at<uchar>(x+1,y+1) > grad.at<uchar>(x+1,y-1))) {
       ++x; ++y;
+      last_move = 1;
     } else{
       ++x;
     }
+    edgeSeg.push_back({x,y});
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           !isHorizontal(dirMap,x,y));
+  if (isValidEdgel(grad, x, y) and !isOccupied(edgeMap, x, y)) {
+    return last_move;
+  } else {
+    edgeSeg.pop_back();
+    return 0;
+  }
 }
 
-void edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
+bool edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
                     Mat& edgeMap, pt_list& edgeSeg) {
+  int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 75;
     if ((grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x,y-1)) and
           (grad.at<uchar>(x-1,y-1) > grad.at<uchar>(x+1,y-1))) {
       --x; --y;
+      last_move = -1;
     } else if ((grad.at<uchar>(x+1,y-1) > grad.at<uchar>(x-1,y-1)) and
           (grad.at<uchar>(x+1,y-1) > grad.at<uchar>(x,y-1))) {
       ++x; --y;
+      last_move = 1;
     } else{
       --y;
     }
+    edgeSeg.push_back({x,y});
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           isHorizontal(dirMap,x,y));
+  if (isValidEdgel(grad, x, y) and !isOccupied(edgeMap, x, y)) {
+    return last_move;
+  } else {
+    edgeSeg.pop_back();
+    return 0;
+  }
 }
 
-void edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
+bool edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
                     Mat& edgeMap, pt_list& edgeSeg) {
+  int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 75;
     if ((grad.at<uchar>(x-1,y+1) > grad.at<uchar>(x,y+1)) and
           (grad.at<uchar>(x-1,y+1) > grad.at<uchar>(x+1,y+1))) {
       --x; ++y;
+      last_move = -1;
     } else if ((grad.at<uchar>(x+1,y+1) > grad.at<uchar>(x-1,y+1)) and
           (grad.at<uchar>(x+1,y+1) > grad.at<uchar>(x,y+1))) {
       ++x; ++y;
+      last_move = 1;
     } else{
       ++y;
     }
+    edgeSeg.push_back({x,y});
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           isHorizontal(dirMap,x,y));
+  if (isValidEdgel(grad, x, y) and !isOccupied(edgeMap, x, y)) {
+    return last_move;
+  } else {
+    edgeSeg.pop_back();
+    return 0;
+  }
 }
 
 void sortAnchors(pt_list& anchorList, Mat& grad, pt_list& dst) {
@@ -174,14 +215,33 @@ void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap) {
       edgeMap.at<uchar>(anchor[0],anchor[1]) = 255;
     }
   }
-
 }
 
-// void expandAnchor() {
-//   if (isHorizontal(dirMap, x , y)) {
-//
-//   }
-// }
+void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, edgeSeg_list& dst) {
+  edgeSeg_list seg_A, seg_B;
+  int move_A, move_B;
+  bool was_Horizontal;
+  if (isHorizontal(dirMap, x , y)) {
+    was_Horizontal = true;
+    move_A = edgelWalkLeft(x,y,grad, dirMap, edgeMap, seg_A);
+    move_B = edgelWalkRight(x,y, grad, dirMap, edgeMap, seg_B);
+  } else {
+    was_Horizontal = false;
+    move_A = edgelWalkUp(x,y,grad, dirMap, edgeMap, seg_A);
+    move_B = edgelWalkDown(x,y, grad, dirMap, edgeMap, seg_B);
+  }
+  while (move_A != 0 and move_B != 0) {
+    if (move_A != 0) {
+      move_A = growSegment(seg_A.back(), grad, dirMap, edgeMap, seg_A, was_Horizontal);
+    }
+    if (move_B != 0) {
+      move_A = growSegment(seg_B.back(), grad, dirMap, edgeMap, seg_A, was_Horizontal);
+    }
+  }
+  dst.insert(dst.end(),seg_A.rbegin(), seg_A.rend());
+  dst.push_back({x,y});
+  dst.insert(dst.end(),seg_B.begin(),seg_B.end());
+}
 
 void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap);
 
