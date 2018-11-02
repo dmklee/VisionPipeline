@@ -3,6 +3,7 @@
 
 CMakeFiles/VisionPipeline.dir/VisionPipeline.cpp.o
  /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
+ /home/david/Desktop/VisionPipeline/Cpp/LineDrawing.hpp
  /home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
  /home/david/Desktop/VisionPipeline/Cpp/VisionPipeline.cpp
  /usr/local/include/opencv/cxcore.h

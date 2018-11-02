@@ -13,10 +13,10 @@ typedef std::vector< pt_type > seg_type;
 typedef std::vector< seg_type > segList_type;
 
 
-void suppressNoise(Mat& img_gray, Mat& dst) {
+void suppressNoise(Mat& img, Mat& dst) {
   cv::Size ksize = {5,5};
   double sigma = 1.0;
-  cv::GaussianBlur(img_gray,dst,ksize,sigma);
+  cv::GaussianBlur(img,dst,ksize,sigma);
 }
 
 void computeGradAndDirectionMap(Mat& img_gray, Mat& grad, Mat& dirMap) {
@@ -260,10 +260,22 @@ void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, seg_type& anchorList,
 
 }
 
-void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst) {
+void makeEdgeSegMap(Mat& edgeSegMap, segList_type& edgeSegments) {
+  for (const auto& seg: edgeSegments) {
+    int i = 255;
+    for (const auto& point :seg) {
+      edgeSegMap.at<uchar>(point[0],point[1]) = i;
+    }
+    i -= 70;
+  }
+}
+
+void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst,
+                      int gradThreshold = 36, int anchorThreshold = 8,
+                      int scanInterval=4) {
   seg_type anchorList;
   clock_t t = clock();
-  extractAnchors(grad, dirMap, anchorList, 36, 8, 4);
+  extractAnchors(grad, dirMap, anchorList, gradThreshold,anchorThreshold,scanInterval);
   t = clock()-t;
   std::printf("I found %i anchors in %f ms.\n", static_cast<int>(anchorList.size()),
               ((float)t)/CLOCKS_PER_SEC *1000.0);
@@ -274,6 +286,46 @@ void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst) {
   t = clock()-t;
   std::printf("I produced %i edge segments in %f ms.\n", static_cast<int>(dst.size()),
               ((float)t)/CLOCKS_PER_SEC*1000.0);
+}
+
+void runEdgeDrawing(Mat & image) {
+  std::printf("Running Edge Drawing Algorithm...\n");
+  std::printf("Image is %i by %i.\n", image.rows, image.cols);
+  Mat grad, dirMap;
+  clock_t t = clock();
+  suppressNoise(image,image);
+  t = clock()-t;
+  std::printf("I applied gaussian filter in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+
+  t = clock();
+  computeGradAndDirectionMap(image,grad,dirMap);
+  t = clock()-t;
+  std::printf("I computed the gradient in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+
+  seg_type anchorList;
+  Mat anchorMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  extractAnchors(grad,dirMap,anchorList,36,2,4);
+  for (const auto& point: anchorList) {
+    anchorMap.at<uchar>(point[0],point[1]) = 255;
+  }
+
+  Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  segList_type edgeSegments;
+  findEdgeSegments(grad, dirMap, edgeMap, edgeSegments);
+
+  Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  makeEdgeSegMap(edgeSegMap, edgeSegments);
+
+  // namedWindow("Anchor Map", WINDOW_NORMAL );
+  // resizeWindow("Anchor Map", 1000, 800);
+  // imshow("Anchor Map", anchorMap);
+  // waitKey(0);
+  namedWindow("Edge Map", WINDOW_NORMAL );
+  resizeWindow("Edge Map", 1000, 800);
+  imshow("Edge Map", edgeSegMap );
+  waitKey(0);
 }
 
 #endif
