@@ -117,7 +117,7 @@ void lineFit(seg_it_type& it, size_t numPixels, lineChain_type& dst,
   it += lineLength;
 }
 
-void generateLines(segList_type edgeSegments, lineChainList_type dst,
+void generateLines(const segList_type& edgeSegments, lineChainList_type& dst,
                     int minLineLength, int maxFitError=1) {
   lineChain_type lineChain;
   seg_it_type it;
@@ -133,6 +133,10 @@ void generateLines(segList_type edgeSegments, lineChainList_type dst,
       lineChain.clear();
     }
   }
+}
+
+void makeLineMap(lineChainList_type& lineChainList, Mat& lineMap) {
+
 }
 
 void runLineDrawing(Mat& img) {
@@ -159,19 +163,24 @@ void runLineDrawing(Mat& img) {
   findEdgeSegments(grad, dirMap, edgeMap, edgeSegments,
                     gradThreshold, anchorThreshold, scanInterval);
 
-  lineList_type lineList;
-  generateLines(edgeSegments, lineList);
+  t = clock();
+  lineChainList_type lineChains;
+  int minLineLength = computeMinLineLength(grad);
+  generateLines(edgeSegments, lineChains, minLineLength);
+  t = clock()-t;
+  int numLines = 0;
+  for (const auto& lineChain: lineChains) {
+    numLines += lineChain.size();
+  }
+  std::printf("I generated %i line segments in %f ms\n", numLines,
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
 
+  Mat& lineMap = Mat::zeros();
+  makeLineMap(lineChains, lineMap);
 
-  Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  makeEdgeSegMap(edgeSegMap, edgeSegments);
-
-
-
-
-  namedWindow("Grad Map", WINDOW_NORMAL );
-  resizeWindow("Grad Map", 1000, 800);
-  imshow("Grad Map", edgeSegMap);
+  namedWindow("Line Map", WINDOW_NORMAL );
+  resizeWindow("Line Map", 1000, 800);
+  imshow("Line Map", lineMap );
   waitKey(0);
 }
 #endif
