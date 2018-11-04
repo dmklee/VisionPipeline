@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <ctime>
+#include <fstream>
 
 typedef std::array<int,2> pt_type;
 typedef std::vector< pt_type > seg_type;
@@ -264,15 +265,14 @@ void makeEdgeSegMap(Mat& edgeSegMap, segList_type& edgeSegments) {
   for (const auto& seg: edgeSegments) {
     int i = 255;
     for (const auto& point :seg) {
-      edgeSegMap.at<uchar>(point[0],point[1]) = i;
+      edgeSegMap.at<uchar>(point[0],point[1]) = i--;
     }
-    i -= 70;
   }
 }
 
 void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst,
                       int gradThreshold = 36, int anchorThreshold = 8,
-                      int scanInterval=4) {
+                      int scanInterval=4, int minLineLength=8) {
   seg_type anchorList;
   clock_t t = clock();
   extractAnchors(grad, dirMap, anchorList, gradThreshold,anchorThreshold,scanInterval);
@@ -282,10 +282,23 @@ void findEdgeSegments(Mat& grad, Mat& dirMap, Mat& edgeMap, segList_type& dst,
   seg_type anchorListSorted;
   sortAnchors(anchorList, grad, anchorListSorted);
   t = clock();
-  expandAnchors(grad, dirMap, edgeMap, anchorListSorted, dst);
+  expandAnchors(grad, dirMap, edgeMap, anchorListSorted, dst, minLineLength);
   t = clock()-t;
   std::printf("I produced %i edge segments in %f ms.\n", static_cast<int>(dst.size()),
               ((float)t)/CLOCKS_PER_SEC*1000.0);
+}
+
+void writeEdgeSegmentsToFile(segList_type& edgeSegments) {
+  std::ofstream myfile;
+  myfile.open("edgeSegments.txt");
+  for (const auto& edgeSegment: edgeSegments) {
+    std::printf("edge segment has length of %i\n", static_cast<int>(edgeSegment.size()));
+    for (const auto& point: edgeSegment) {
+      myfile << "(" << point[0] << "," << point[1] << ")\n";
+    }
+    myfile << "------- end of edge segment ---------\n";
+  }
+  myfile.close();
 }
 
 void runEdgeDrawing(Mat & image) {

@@ -19,6 +19,8 @@ stdio.h
 -
 ctime
 -
+fstream
+-
 
 /home/david/Desktop/VisionPipeline/Cpp/LineDrawing.hpp
 opencv2/opencv.hpp

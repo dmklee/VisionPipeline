@@ -16,7 +16,7 @@ struct Line {
 
 typedef std::vector< Line > lineChain_type;
 typedef std::vector< lineChain_type > lineChainList_type;
-typedef std::vector< seg_type >::iterator seg_it_type;
+typedef seg_type::iterator seg_it_type;
 
 void computeGrad(Mat& img, Mat& grad, Mat& dirMap, Mat& angleMap) {
   Mat grad_x, grad_y;
@@ -32,7 +32,7 @@ void computeGrad(Mat& img, Mat& grad, Mat& dirMap, Mat& angleMap) {
 }
 
 int computeMinLineLength(Mat& img) {
-  int N = (img.rows*img.cols)/2;
+  int N = pow(img.rows*img.cols, 0.5);
   int n = -4*log(N)/log(0.125);
   return n;
 }
@@ -45,88 +45,87 @@ bool isAligned(Mat& angleMap, pt_type& pix_A, pt_type& pix_B) {
   return  diff <= M_PI/8.0;
 }
 
-void leastSquaresLineFit(seg_it_type& it, int minLineLength, Line& line,
+void leastSquaresLineFit(const seg_it_type& it, int minLineLength, Line& L,
                           double& error) {
-  // decide if its more horizontal or vertical
-  double est_slope = ((*(it+minLineLength-1))[1] - (*(it+1))[1]) /
-                      ((*(it+minLineLength-1))[0] - (*(it+1))[0]);
-  bool isVertical = abs(est_slope) > 1000;
-  int sum_x, sum_y, sum_xy, sum_x2, sum_y2;
-  sum_x = sum_y = sum_xy = sum_x2 = sum_y2 = 0;
+  double sum_x, sum_y, sum_xy, sum_x2;
+  sum_x = sum_y = sum_xy = sum_x2 = 0;
+  int x,y;
   for (int i=0; i<minLineLength; i++) {
-    sum_x += (*(it+i))[0];
-    sum_y += (*(it+i))[1];
-    sum_xy += (*(it+i))[0]*(*(it+i))[1];
-    sum_x2 += pow((*(it+i))[0],2);
-    sum_y2 += pow((*(it+i))[1],2);
+    x = (*(it+i))[0];
+    y = (*(it+i))[1];
+    sum_x += x;
+    sum_y += y;
+    sum_xy += x*y;
+    sum_x2 += x*x;
   }
-  if (isVertical) {
-    std::swap(sum_x,sum_y);
-    std::swap(sum_x2,sum_y2);
-  }
-  int c = (minLineLength+1)*pow(sum_x2-sum_x,2);
-  double a,b;
-  a = 1/c * ((minLineLength+1)*sum_xy-sum_x*sum_y);
-  b = 1/c * (sum_x2*sum_y - sum_x*sum_xy);
-  if (isVertical) {
-    line._A = 1.0;
-    line._B = -a;
-    line._C = b;
+  double xMean = sum_x / minLineLength;
+  double yMean = sum_y / minLineLength;
+  double denom = sum_x2 - sum_x * xMean;
+  if (std::fabs(denom) < 1e-7) {
+    //vertical line
+    L._A = 1.0;
+    L._B = 0.0;
+    L._C = -xMean;
   } else {
-    line._A = a;
-    line._B = -1.0;
-    line._C = b;
+    L._A = -(sum_xy - sum_x * yMean) / denom;
+    L._B = 1.0;
+    L._C = - (yMean + L._A * xMean);
   }
   // now compute the error
   error = 0.0;
   for (int i=0; i < minLineLength; ++i) {
-    error += pow(line._A*(*(it+i))[0] + line._B*(*(it+i))[1] +line._C, 2.0);
+    error += pow(L._A*(*(it+i))[0] + L._B*(*(it+i))[1] +L._C, 2.0);
   }
 }
 
-double computePointDistance2Line(Line& line, const seg_it_type& it) {
-  return abs(line._A*(*it)[0] + line._B*(*it)[1] + line._C)/
-          std::sqrt(pow(line._A,2)+pow(line._B,2));
+double computePointDistance2Line(const Line& L, const seg_it_type& it) {
+  return abs(L._A * (*it)[0] + L._B * (*it)[1] + L._C)/
+          std::sqrt(pow(L._A,2)+pow(L._B,2));
 }
 
-void lineFit(seg_it_type& it, size_t numPixels, lineChain_type& dst,
+void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
             int minLineLength, int maxFitError) {
   // return true unless out of pixels
-  double error = 10*lineFitError;
-  Line line;
+  double error = 10*maxFitError;
+  Line L;
   while (numPixels > minLineLength) {
-    leastSquaresLineFit(it, minLineLength, line, error);
-    if (error <= maxFitError) break; // initial line detected
+    leastSquaresLineFit(it, minLineLength, L, error);
+    if (error <= maxFitError) {
+      break;
+    } // initial line detected
     it++;
     numPixels--;
   }
   if (error > maxFitError) return; // out of pixels
 
   for (int i=0; i != minLineLength; ++i) {
-    line._data.push_back({*(it+i)[0],*(it+i)[1]});
+    L._data.push_back({(*(it+i))[0],(*(it+i))[1]});
   }
 
   int lineLength = minLineLength;
+  it += lineLength;
   double d;
   while (lineLength < numPixels) {
-    d = computePointDistance2Line(line, it+lineLength);
+    d = computePointDistance2Line(L, it);
     if (d > maxFitError) break;
-    line._data.push_back({*(it+lineLength)[0],*(it+lineLength)[1]});
+    L._data.push_back({(*it)[0],(*it)[1]});
     lineLength++;
+    it++;
   }
-  it += lineLength;
+  lineChain.push_back(L);
 }
 
-void generateLines(const segList_type& edgeSegments, lineChainList_type& dst,
-                    int minLineLength, int maxFitError=1) {
+void generateLines(segList_type& edgeSegments, lineChainList_type& dst,
+                    int minLineLength=12, int maxFitError=1) {
   lineChain_type lineChain;
-  seg_it_type it;
-  size_t segLength;
-  for (const auto& edgeSegment: edgeSegments) {
-    it = edgeSegment.begin();
-    segLength = edgeSegment.end()-it;
+  // seg_it_type it;
+  // int segLength;
+  for (auto& edgeSegment: edgeSegments) {
+    seg_it_type it = edgeSegment.begin();
+    int segLength = edgeSegment.end()-it;
     while (segLength > minLineLength) {
-      lineFit(it, segLength, lineChain, minLineLength, maxFitError));
+      lineFit(it, segLength, lineChain, minLineLength, maxFitError);
+      segLength = edgeSegment.end()-it;
     }
     if (!lineChain.empty()) {
       dst.push_back(lineChain);
@@ -136,6 +135,16 @@ void generateLines(const segList_type& edgeSegments, lineChainList_type& dst,
 }
 
 void makeLineMap(lineChainList_type& lineChainList, Mat& lineMap) {
+  Scalar color = {0,0,255};
+  int thickness = 1;
+  int x1, y1, x2, y2;
+  for (const auto& lineChain: lineChainList) {
+    for (const auto& L: lineChain) {
+      x1 = L._data.front()[0]; y1 = L._data.front()[1];
+      x2 = L._data.back()[0]; y2 = L._data.back()[1];
+      cv::line ( lineMap, Point(y1, x1), Point(y2, x2), color, thickness);
+    }
+  }
 
 }
 
@@ -158,14 +167,17 @@ void runLineDrawing(Mat& img) {
   segList_type edgeSegments;
   Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
   int gradThreshold = 5;
-  int anchorThreshold = 1;
+  int anchorThreshold = 3;
   int scanInterval = 4;
-  findEdgeSegments(grad, dirMap, edgeMap, edgeSegments,
-                    gradThreshold, anchorThreshold, scanInterval);
+  int minLineLength = computeMinLineLength(grad);
+  findEdgeSegments(grad, dirMap, edgeMap, edgeSegments, gradThreshold,
+                  anchorThreshold, scanInterval, minLineLength);
+
+  Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  makeEdgeSegMap(edgeSegMap, edgeSegments);
 
   t = clock();
   lineChainList_type lineChains;
-  int minLineLength = computeMinLineLength(grad);
   generateLines(edgeSegments, lineChains, minLineLength);
   t = clock()-t;
   int numLines = 0;
@@ -175,7 +187,8 @@ void runLineDrawing(Mat& img) {
   std::printf("I generated %i line segments in %f ms\n", numLines,
               ((float)t)/CLOCKS_PER_SEC*1000.0);
 
-  Mat& lineMap = Mat::zeros();
+  Mat lineMap;
+  cvtColor(edgeSegMap, lineMap, cv::COLOR_GRAY2BGR);
   makeLineMap(lineChains, lineMap);
 
   namedWindow("Line Map", WINDOW_NORMAL );
@@ -183,4 +196,5 @@ void runLineDrawing(Mat& img) {
   imshow("Line Map", lineMap );
   waitKey(0);
 }
+
 #endif
