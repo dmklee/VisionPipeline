@@ -71,11 +71,12 @@ void leastSquaresLineFit(const seg_it_type& it, int minLineLength, Line& L,
     L._B = 1.0;
     L._C = - (yMean + L._A * xMean);
   }
-  // now compute the error
+  // now compute the root mean square error
   error = 0.0;
   for (int i=0; i < minLineLength; ++i) {
     error += pow(L._A*(*(it+i))[0] + L._B*(*(it+i))[1] +L._C, 2.0);
   }
+  error = sqrt(error/minLineLength);
 }
 
 double computePointDistance2Line(const Line& L, const seg_it_type& it) {
