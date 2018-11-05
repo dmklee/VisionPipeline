@@ -8,6 +8,89 @@
 #include <stdio.h>
 #include <math.h>
 
+struct Arc {
+  double _cX, _cY;
+  double _radius;
+  double _startAngle, _endAngle;
+};
+
+void leastSquaresCircleFit(lineChain_type& lineChain, int maxFitError ) {
+  // https://dtcenter.org/met/users/docs/write_ups/circle_fit.pdf
+
+  // find the mean values for x, y
+  double x_bar, y_bar;
+  int N;
+  for (const auto& line: lineChain) {
+    for (const auto& pt: line._data) {
+      x_bar += pt[0];
+      y_bar += pt[1];
+      N++;
+    }
+  }
+  x_bar /= N;
+  y_bar /= N;
+
+  double Suu, Suuu, Suv, Svv;
+  Suu = Suuu = Suv = Svv = 0.0;
+  for (const auto& line: lineChain) {
+    for (const auto& pt: line._data) {
+      Suu += pow(,2);
+    }
+  }
+}
+
+
+void runCircleDrawing(Mat& img) {
+  std::printf("Running Circle Drawing algorithm...\n" );
+  std::printf("Image size is %i by %i\n", static_cast<int>(img.rows),
+              static_cast<int>(img.cols));
+  clock_t t = clock();
+  suppressNoise(img,img);
+  t = clock()-t;
+  std::printf("I applied gaussian filter in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+
+  Mat grad,dirMap,angleMap;
+  t = clock();
+  computeGrad(img, grad, dirMap, angleMap);
+  t = clock()-t;
+  std::printf("I computed gradient and angle map in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+
+  segList_type edgeSegments;
+  Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  int gradThreshold = 5;
+  int anchorThreshold = 3;
+  int scanInterval = 4;
+  int minLineLength = computeMinLineLength(grad);
+  findEdgeSegments(grad, dirMap, edgeMap, edgeSegments, gradThreshold,
+                  anchorThreshold, scanInterval, minLineLength);
+
+  Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  makeEdgeSegMap(edgeSegMap, edgeSegments);
+
+  t = clock();
+  lineChainList_type lineChains;
+  generateLines(edgeSegments, lineChains, minLineLength);
+  t = clock()-t;
+  int numLines = 0;
+  for (const auto& lineChain: lineChains) {
+    numLines += lineChain.size();
+  }
+  std::printf("I generated %i line segments in %f ms\n", numLines,
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+
+  Mat lineMap;
+  cvtColor(edgeSegMap, lineMap, cv::COLOR_GRAY2BGR);
+  makeLineMap(lineChains, lineMap);
+
+  namedWindow("Line Map", WINDOW_NORMAL );
+  resizeWindow("Line Map", 1000, 800);
+  imshow("Line Map", lineMap );
+  waitKey(0);
+}
+
+
 
 
 #endif
