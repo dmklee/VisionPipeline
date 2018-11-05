@@ -9,7 +9,7 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  Mat image = imread("../Pics/occlusion.png", 1);
+  Mat image = imread("../Pics/chairs.png", 1);
   Mat image_gray;
   cvtColor( image, image_gray, CV_BGR2GRAY );
   // runEdgeDrawing(image_gray);

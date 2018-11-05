@@ -18,7 +18,7 @@ typedef std::vector< Line > lineChain_type;
 typedef std::vector< lineChain_type > lineChainList_type;
 typedef seg_type::iterator seg_it_type;
 
-void computeGrad(Mat& img, Mat& grad, Mat& dirMap, Mat& angleMap) {
+void computeGrad(const Mat& img, Mat& grad, Mat& dirMap, Mat& angleMap) {
   Mat grad_x, grad_y;
   Mat abs_grad_x, abs_grad_y;
   int ddepth = CV_32F;
@@ -31,7 +31,7 @@ void computeGrad(Mat& img, Mat& grad, Mat& dirMap, Mat& angleMap) {
   grad.convertTo(grad,CV_8U);
 }
 
-int computeMinLineLength(Mat& img) {
+int computeMinLineLength(const Mat& img) {
   int N = pow(img.rows*img.cols, 0.5);
   int n = -4*log(N)/log(0.125);
   return n;
@@ -45,8 +45,8 @@ bool isAligned(Mat& angleMap, pt_type& pix_A, pt_type& pix_B) {
   return  diff <= M_PI/8.0;
 }
 
-void leastSquaresLineFit(const seg_it_type& it, int minLineLength, Line& L,
-                          double& error) {
+void leastSquaresLineFit(const seg_it_type& it, const int minLineLength,
+                          Line& L, double& error) {
   double sum_x, sum_y, sum_xy, sum_x2;
   sum_x = sum_y = sum_xy = sum_x2 = 0;
   int x,y;
@@ -79,13 +79,13 @@ void leastSquaresLineFit(const seg_it_type& it, int minLineLength, Line& L,
   error = sqrt(error/minLineLength);
 }
 
-double computePointDistance2Line(const Line& L, const seg_it_type& it) {
+inline double computePointDistance2Line(const Line& L, const seg_it_type& it) {
   return abs(L._A * (*it)[0] + L._B * (*it)[1] + L._C)/
           std::sqrt(pow(L._A,2)+pow(L._B,2));
 }
 
 void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
-            int minLineLength, int maxFitError) {
+             const int minLineLength, const int maxFitError) {
   // return true unless out of pixels
   double error = 10*maxFitError;
   Line L;
@@ -117,7 +117,7 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
 }
 
 void generateLines(segList_type& edgeSegments, lineChainList_type& dst,
-                    int minLineLength=12, int maxFitError=1) {
+                    const int minLineLength=12, const int maxFitError=1) {
   lineChain_type lineChain;
   // seg_it_type it;
   // int segLength;
@@ -154,14 +154,15 @@ void runLineDrawing(Mat& img) {
   std::printf("Image size is %i by %i\n", static_cast<int>(img.rows),
               static_cast<int>(img.cols));
   clock_t t = clock();
+  float total = 0;
   suppressNoise(img,img);
   t = clock()-t;
   std::printf("I applied gaussian filter in %f ms\n",
               ((float)t)/CLOCKS_PER_SEC*1000.0);
 
-  Mat grad,dirMap,angleMap;
+  Mat grad,dirMap;
   t = clock();
-  computeGrad(img, grad, dirMap, angleMap);
+  computeGradAndDirectionMap(img, grad, dirMap);
   t = clock()-t;
   std::printf("I computed gradient and angle map in %f ms\n",
               ((float)t)/CLOCKS_PER_SEC*1000.0);

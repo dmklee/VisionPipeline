@@ -14,7 +14,7 @@ struct Arc {
   double _startAngle, _endAngle;
 };
 
-void leastSquaresCircleFit(lineChain_type& lineChain, int maxFitError ) {
+void leastSquaresCircleFit(lineChain_type& lineChain, Arc& arc, double& maxFitError ) {
   // https://dtcenter.org/met/users/docs/write_ups/circle_fit.pdf
 
   // find the mean values for x, y
@@ -30,13 +30,37 @@ void leastSquaresCircleFit(lineChain_type& lineChain, int maxFitError ) {
   x_bar /= N;
   y_bar /= N;
 
-  double Suu, Suuu, Suv, Svv;
-  Suu = Suuu = Suv = Svv = 0.0;
+  double u, v;
+  double Suu, Suv, Svv, Suuu, Svvv, Suvv, Svuu;
+  Suu = Suv = Svv = Suuu = Svvv = Suvv = Svuu = 0.0;
   for (const auto& line: lineChain) {
     for (const auto& pt: line._data) {
-      Suu += pow(,2);
+      u = pt[0] - x_bar;
+      v = pt[1] - y_bar;
+      Suu  += u*u;
+      Suv  += u*v;
+      Svv  += v*v;
+      Suuu += u*u*u;
+      Svvv += v*v*v;
+      Suvv += u*v*v;
+      Svuu += v*u*u;
     }
   }
+  double v_c, u_c, r2;
+  v_c = 1/2*((Suuu + Suvv)/Suu - (Svvv+Svuu)/Suv) / (Suv/Suu - Svv/Suv);
+  u_c = (1/2*(Suuu+Suvv) - Suv*v_c )/Suu;
+  r2 = u_c*u_c + v_c*v_c + (Suu+Svv)/N;
+  arc._cX = u_c + x_bar;
+  arc._cY = v_c + y_bar;
+  arc._radius = sqrt(r2);
+  // find start and end angle
+  error = 0.0;
+  for (const auto& line: lineChain) {
+    for (const auto& pt: line._data) {
+      error += pow(pow(pt[0] - arc._cX,2) + pow(pt[1] - arc._cY,2) - r2 , 2 );
+    }
+  }
+  error = sqrt(error/N);
 }
 
 

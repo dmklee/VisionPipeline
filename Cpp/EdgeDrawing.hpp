@@ -14,13 +14,13 @@ typedef std::vector< pt_type > seg_type;
 typedef std::vector< seg_type > segList_type;
 
 
-void suppressNoise(Mat& img, Mat& dst) {
+void suppressNoise(const Mat& img, Mat& dst) {
   cv::Size ksize = {5,5};
   double sigma = 1.0;
   cv::GaussianBlur(img,dst,ksize,sigma);
 }
 
-void computeGradAndDirectionMap(Mat& img_gray, Mat& grad, Mat& dirMap) {
+void computeGradAndDirectionMap(const Mat& img_gray, Mat& grad, Mat& dirMap) {
   Mat grad_x, grad_y;
   int ddepth = CV_16S;
   cv::Sobel( img_gray, grad_x, ddepth, 1, 0, 3 );
@@ -31,16 +31,16 @@ void computeGradAndDirectionMap(Mat& img_gray, Mat& grad, Mat& dirMap) {
   dirMap = grad_x >= grad_y;
 }
 
-bool isHorizontal(Mat& dirMap, int x, int y) {
+inline bool isHorizontal(const Mat& dirMap, const int x, int y) {
   // edge is horizontal here
   return dirMap.at<uchar>( x , y ) == 0;
 }
 
-bool isOccupied(Mat& edgeMap, int x, int y) {
+inline bool isOccupied(const Mat& edgeMap, const int x, const int y) {
   return edgeMap.at<uchar>( x , y ) > 0;
 }
 
-bool isValidEdgel(Mat& grad, int x, int y) {
+inline bool isValidEdgel(const Mat& grad, const int x, const int y) {
   if (x < 0 or y < 0 or x >= grad.rows or y >= grad.cols) {
     return false;
   }
@@ -48,8 +48,8 @@ bool isValidEdgel(Mat& grad, int x, int y) {
   return grad.at<uchar>( x , y ) > threshold;
 }
 
-bool isAnchor(int x, int y, Mat& grad, Mat& dirMap,
-              int gradThreshold, int anchorThreshold) {
+bool isAnchor(const int x, const int y, const Mat& grad, const Mat& dirMap,
+              const int gradThreshold, const int anchorThreshold) {
   if (grad.at<uchar>( x , y ) < gradThreshold) {
     return false;
   }
@@ -67,8 +67,9 @@ bool isAnchor(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-void extractAnchors(Mat& grad,Mat& dirMap, seg_type& anchorList, int gradThreshold,
-                    int anchorThreshold,int scanInterval) {
+void extractAnchors(const Mat& grad, const Mat& dirMap, seg_type& anchorList,
+                    const int gradThreshold, const int anchorThreshold,
+                    const int scanInterval) {
   // iterate over every "scanInterval"-th row and column
   // if isAnchor(pixel) then add to anchorList
   for (int i = 1; i < (grad.rows-1); i += scanInterval) {
@@ -81,8 +82,8 @@ void extractAnchors(Mat& grad,Mat& dirMap, seg_type& anchorList, int gradThresho
   return;
 }
 
-int edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
-    Mat& edgeMap, seg_type& edgeSeg) {
+int edgelWalkUp(int x, int y, const Mat& grad, const Mat& dirMap,
+                Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
     edgeMap.at<uchar>( x , y ) = 255;
@@ -108,7 +109,7 @@ int edgelWalkUp(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-int edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkDown(int x, int y, const Mat& grad, const Mat& dirMap,
                     Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
@@ -135,7 +136,7 @@ int edgelWalkDown(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-int edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkLeft(int x, int y, const Mat& grad, const Mat& dirMap,
                     Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
@@ -162,7 +163,7 @@ int edgelWalkLeft(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-int edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
+int edgelWalkRight(int x, int y, const Mat& grad, const Mat& dirMap,
                     Mat& edgeMap, seg_type& edgeSeg) {
   int last_move = 0;
   do {
@@ -189,14 +190,14 @@ int edgelWalkRight(int x, int y, Mat& grad, Mat& dirMap,
   }
 }
 
-void sortAnchors(seg_type& anchorList, Mat& grad, seg_type& dst) {
+void sortAnchors(const seg_type& anchorList, const Mat& grad, seg_type& dst) {
   // return a list going from highest to lowest grad value
   std::copy(anchorList.begin(),anchorList.end(),std::back_inserter(dst));
   return;
 }
 
-int growSegment(Mat& grad, Mat& dirMap, Mat& edgeMap, pt_type& start,
-                seg_type& seg, bool was_Horizontal, int move_id) {
+int growSegment(const Mat& grad, const Mat& dirMap, Mat& edgeMap, const pt_type& start,
+                seg_type& seg, const bool was_Horizontal, const int move_id) {
   if (was_Horizontal) {
     if (move_id == 1) {
       return edgelWalkDown(start[0],start[1], grad, dirMap, edgeMap, seg);
@@ -216,7 +217,8 @@ int growSegment(Mat& grad, Mat& dirMap, Mat& edgeMap, pt_type& start,
   }
 }
 
-void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, seg_type& dst) {
+void expandAnchor(const Mat& grad, const Mat& dirMap, Mat& edgeMap,
+                  const int x, const int y, seg_type& dst) {
   seg_type seg_A, seg_B;
   int move_A, move_B;
   bool was_Horizontal;
@@ -246,8 +248,8 @@ void expandAnchor(Mat& grad, Mat& dirMap, Mat& edgeMap, int x, int y, seg_type& 
   dst.insert(dst.end(),seg_B.begin(),seg_B.end());
 }
 
-void expandAnchors(Mat& grad, Mat& dirMap, Mat& edgeMap, seg_type& anchorList,
-                    segList_type& dst, int sizeThreshold = 3) {
+void expandAnchors(const Mat& grad, const Mat& dirMap, Mat& edgeMap, const seg_type& anchorList,
+                    segList_type& dst, const int sizeThreshold = 3) {
   seg_type new_edge;
   for (const auto& anchor: anchorList) {
     if (!isOccupied(edgeMap, anchor[0], anchor[1])) {
