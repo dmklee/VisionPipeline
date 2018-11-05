@@ -11,6 +11,7 @@
 struct Line {
   // _A * x + _B * y + _C = 0
   float _A,_B,_C;
+  double _sumX, _sumY, _sumXY, _sumX2;
   seg_type _data; // may or may not be needed
 };
 
@@ -47,27 +48,23 @@ bool isAligned(Mat& angleMap, pt_type& pix_A, pt_type& pix_B) {
 
 void leastSquaresLineFit(const seg_it_type& it, const int minLineLength,
                           Line& L, double& error) {
-  double sum_x, sum_y, sum_xy, sum_x2;
-  sum_x = sum_y = sum_xy = sum_x2 = 0;
-  int x,y;
-  for (int i=0; i<minLineLength; i++) {
-    x = (*(it+i))[0];
-    y = (*(it+i))[1];
-    sum_x += x;
-    sum_y += y;
-    sum_xy += x*y;
-    sum_x2 += x*x;
-  }
-  double xMean = sum_x / minLineLength;
-  double yMean = sum_y / minLineLength;
-  double denom = sum_x2 - sum_x * xMean;
+
+  int x = (*(it+minLineLength))[0];
+  int y = (*(it+minLineLength))[1];
+  L._sumX += x;
+  L._sumY += y;
+  L._sumXY += x*y;
+  L._sumX2 += x*x;
+  double xMean = L._sumX / minLineLength;
+  double yMean = L._sumY / minLineLength;
+  double denom = L._sumX2 - L._sumX * xMean;
   if (std::fabs(denom) < 1e-7) {
     //vertical line
     L._A = 1.0;
     L._B = 0.0;
     L._C = -xMean;
   } else {
-    L._A = -(sum_xy - sum_x * yMean) / denom;
+    L._A = -(L._sumXY - L._sumX * yMean) / denom;
     L._B = 1.0;
     L._C = - (yMean + L._A * xMean);
   }
@@ -77,6 +74,13 @@ void leastSquaresLineFit(const seg_it_type& it, const int minLineLength,
     error += pow(L._A*(*(it+i))[0] + L._B*(*(it+i))[1] +L._C, 2.0);
   }
   error = sqrt(error/minLineLength);
+
+  x = (*it)[0];
+  y = (*it)[1];
+  L._sumX  -= x;
+  L._sumY  -= y;
+  L._sumXY -= x*y;
+  L._sumX2 -= x*x;
 }
 
 inline double computePointDistance2Line(const Line& L, const seg_it_type& it) {
@@ -85,10 +89,20 @@ inline double computePointDistance2Line(const Line& L, const seg_it_type& it) {
 }
 
 void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
-             const int minLineLength, const int maxFitError) {
+             const int minLineLength, const float maxFitError) {
   // return true unless out of pixels
   double error = 10*maxFitError;
   Line L;
+  L._sumX = L._sumY = L._sumXY = L._sumX2 = 0.0;
+  int x,y;
+  for (int i=0; i<(minLineLength-1); i++) {
+    x = (*(it+i))[0];
+    y = (*(it+i))[1];
+    L._sumX += x;
+    L._sumY += y;
+    L._sumXY += x*y;
+    L._sumX2 += x*x;
+  }
   while (numPixels > minLineLength) {
     leastSquaresLineFit(it, minLineLength, L, error);
     if (error <= maxFitError) {
@@ -117,7 +131,7 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
 }
 
 void generateLines(segList_type& edgeSegments, lineChainList_type& dst,
-                    const int minLineLength=12, const int maxFitError=1) {
+                    const int minLineLength=12, const float maxFitError=2) {
   lineChain_type lineChain;
   // seg_it_type it;
   // int segLength;
@@ -142,7 +156,7 @@ void makeLineMap(lineChainList_type& lineChainList, Mat& lineMap) {
   for (const auto& lineChain: lineChainList) {
     for (const auto& L: lineChain) {
       x1 = L._data.front()[0]; y1 = L._data.front()[1];
-      x2 = L._data.back()[0]; y2 = L._data.back()[1];
+      x2 = L._data.rbegin()[2][0]; y2 = L._data.rbegin()[2][1];
       cv::line ( lineMap, Point(y1, x1), Point(y2, x2), color, thickness);
     }
   }
@@ -189,8 +203,8 @@ void runLineDrawing(Mat& img) {
   std::printf("I generated %i line segments in %f ms\n", numLines,
               ((float)t)/CLOCKS_PER_SEC*1000.0);
 
-  Mat lineMap;
-  cvtColor(edgeSegMap, lineMap, cv::COLOR_GRAY2BGR);
+  Mat lineMap = Mat::zeros(grad.rows,grad.cols, CV_8U);
+  cvtColor(lineMap, lineMap, cv::COLOR_GRAY2BGR);
   makeLineMap(lineChains, lineMap);
 
   namedWindow("Line Map", WINDOW_NORMAL );
