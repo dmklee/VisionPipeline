@@ -30,4 +30,17 @@ void blur(Mat& img_gray, Mat& dst, Size ksize, double sigma) {
   return;
 }
 
+void ONcenterCell(Mat& img, Mat& dst) {
+  Mat kernel = 2*getGaussianKernel(5,0.5,CV_32F) - getGaussianKernel(5,1.5,CV_32F);
+  filter2D(img, dst, CV_16S, kernel);
+  convertScaleAbs(dst, dst);
+}
+
+void OFFcenterCell(Mat& img, Mat& dst) {
+  int data[9] = { 0, 1, 0, 1, -8, 1, 0, 1, 0};
+  Mat kernel = Mat(3,3,CV_16S,data);
+  filter2D(img, dst, CV_16S, kernel);
+  convertScaleAbs(dst, dst, 0.25);
+}
+
 #endif

@@ -14,6 +14,17 @@ struct Arc {
   double _startAngle, _endAngle;
 };
 
+struct Circle {
+  double _cX, _cY, _radius;
+};
+
+struct Ellipse {
+  double _cX, _cY, _A, _B;
+};
+
+typedef std::vector< Arc > arcList_type;
+
+
 void leastSquaresCircleFit(lineChain_type& lineChain, Arc& arc, double& maxFitError ) {
   // https://dtcenter.org/met/users/docs/write_ups/circle_fit.pdf
 
@@ -46,6 +57,8 @@ void leastSquaresCircleFit(lineChain_type& lineChain, Arc& arc, double& maxFitEr
       Svuu += v*u*u;
     }
   }
+
+
   double v_c, u_c, r2;
   v_c = 1/2*((Suuu + Suvv)/Suu - (Svvv+Svuu)/Suv) / (Suv/Suu - Svv/Suv);
   u_c = (1/2*(Suuu+Suvv) - Suv*v_c )/Suu;
@@ -62,6 +75,8 @@ void leastSquaresCircleFit(lineChain_type& lineChain, Arc& arc, double& maxFitEr
   }
   error = sqrt(error/N);
 }
+
+void circleJoin()
 
 
 void runCircleDrawing(Mat& img) {

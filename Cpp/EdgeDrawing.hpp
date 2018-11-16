@@ -267,7 +267,7 @@ void makeEdgeSegMap(Mat& edgeSegMap, segList_type& edgeSegments) {
   for (const auto& seg: edgeSegments) {
     int i = 255;
     for (const auto& point :seg) {
-      edgeSegMap.at<uchar>(point[0],point[1]) = i--;
+      edgeSegMap.at<uchar>(point[0],point[1]) = i;
     }
   }
 }
@@ -321,7 +321,10 @@ void runEdgeDrawing(Mat & image) {
 
   seg_type anchorList;
   Mat anchorMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  extractAnchors(grad,dirMap,anchorList,36,2,4);
+  const int gradThreshold = 5;
+  const int anchorThreshold = 3;
+  const int scanInterval = 1;
+  extractAnchors(grad,dirMap,anchorList,gradThreshold, anchorThreshold, scanInterval);
   for (const auto& point: anchorList) {
     anchorMap.at<uchar>(point[0],point[1]) = 255;
   }
@@ -339,7 +342,7 @@ void runEdgeDrawing(Mat & image) {
   // waitKey(0);
   namedWindow("Edge Map", WINDOW_NORMAL );
   resizeWindow("Edge Map", 1000, 800);
-  imshow("Edge Map", edgeSegMap );
+  imshow("Edge Map", edgeMap );
   waitKey(0);
 }
 
