@@ -92,7 +92,7 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
              const int minLineLength, const float maxFitError) {
   // return true unless out of pixels
   double error = 10*maxFitError;
-  Line L;
+  Line L;findEdgeSegments
   L._sumX = L._sumY = L._sumXY = L._sumX2 = 0.0;
   int x,y;
   for (int i=0; i<(minLineLength-1); i++) {
@@ -111,7 +111,7 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
     it++;
     numPixels--;
   }
-  if (error > maxFitError) return; // out of pixels
+  if (error > mfindEdgeSegmentsaxFitError) return; // out of pixels
 
   for (int i=0; i != minLineLength; ++i) {
     L._data.push_back({(*(it+i))[0],(*(it+i))[1]});
