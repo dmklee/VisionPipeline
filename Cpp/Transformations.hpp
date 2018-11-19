@@ -30,6 +30,20 @@ void blur(Mat& img_gray, Mat& dst, Size ksize, double sigma) {
   return;
 }
 
+void convertToBWRGYB(Mat& img_color, Mat& BW, Mat& RG, Mat& YB) {
+  int b,g,r;
+  for (int i =0; i < img_color.rows; i++) {
+    for (int j=0; j < img_color.cols; j++) {
+      b = img_color.at<Vec3b>(i,j)[0];
+      g = img_color.at<Vec3b>(i,j)[1];
+      r = img_color.at<Vec3b>(i,j)[2];
+      BW.at<uchar>(i,j) = (b+g+r)/3;
+      RG.at<uchar>(i,j) = (r - g + 255)/2;
+      YB.at<uchar>(i,j) = ((r+g)/2 - b + 255)/2;
+    }
+  }
+}
+
 void ONcenterCell(Mat& img, Mat& dst) {
   Mat kernel = 2*getGaussianKernel(5,0.5,CV_32F) - getGaussianKernel(5,1.5,CV_32F);
   filter2D(img, dst, CV_16S, kernel);

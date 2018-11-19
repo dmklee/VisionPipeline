@@ -342,7 +342,7 @@ void runEdgeDrawing(Mat & image) {
   // waitKey(0);
   namedWindow("Edge Map", WINDOW_NORMAL );
   resizeWindow("Edge Map", 1000, 800);
-  imshow("Edge Map", edgeMap );
+  imshow("Edge Map", grad );
   waitKey(0);
 }
 
