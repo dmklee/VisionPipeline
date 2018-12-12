@@ -569,8 +569,8 @@ class extCurve(basicCurve):
 
 if __name__ == "__main__":
 	name = "simple_shapes.png"
-	# name = 'occlusion.png'
-	name = 'ellipses2.png'
+	name = 'occlusion.png'
+	# name = 'ellipses.png'
 	img = testImage(mode='gaussian',v=0.0,name=name)
 	img = gaussianFilter(img)
 	edges,gradients = sobelOp(img)
@@ -580,7 +580,7 @@ if __name__ == "__main__":
 	plt.autoscale(False)
 	plt.tight_layout()
 
-	seed = edgeSniffer(edges,grouping=200,style='absolute')[0]
+	seeds = edgeSniffer(edges,grouping=200,style='absolute')
 	# seed = (130,140)
 
 	paths = []
