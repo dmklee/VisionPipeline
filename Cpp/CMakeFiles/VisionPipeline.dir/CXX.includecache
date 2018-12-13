@@ -6,6 +6,14 @@
 
 #IncludeRegexTransform: 
 
+/home/david/Desktop/VisionPipeline/Cpp/ContourDetection.hpp
+opencv2/opencv.hpp
+-
+vector
+-
+Transformations.hpp
+/home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
+
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 opencv2/opencv.hpp
 -
@@ -53,6 +61,8 @@ EdgeDrawing.hpp
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 LineDrawing.hpp
 /home/david/Desktop/VisionPipeline/Cpp/LineDrawing.hpp
+ContourDetection.hpp
+/home/david/Desktop/VisionPipeline/Cpp/ContourDetection.hpp
 
 /usr/local/include/opencv/cxcore.h
 opencv2/core/core_c.h

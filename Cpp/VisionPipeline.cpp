@@ -4,6 +4,7 @@
 #include "Transformations.hpp"
 #include "EdgeDrawing.hpp"
 #include "LineDrawing.hpp"
+#include "ContourDetection.hpp"
 
 using namespace cv;
 
@@ -18,12 +19,12 @@ int main(int argc, char** argv )
   Mat RG = Mat(image.rows,image.cols, CV_8UC1);
   Mat YB = Mat(image.rows,image.cols, CV_8UC1);
   convertToBWRGYB(image, BW, RG, YB);
-  runEdgeDrawing(image_gray);
+  // runEdgeDrawing(image_gray);
   // runLineDrawing(image_gray);
-
+  displaySeedLocations(image_gray);
   // namedWindow("Line Map", WINDOW_NORMAL );
   // resizeWindow("Line Map", 1000, 800);
   // imshow("Line Map", BW );
-  waitKey(0);
+  // waitKey(0);
   return 0;
 }
