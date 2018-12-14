@@ -13,6 +13,8 @@ vector
 -
 Transformations.hpp
 /home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
+EdgeDrawing.hpp
+/home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 opencv2/opencv.hpp

@@ -323,7 +323,7 @@ void runEdgeDrawing(Mat & image) {
   Mat anchorMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
   const int gradThreshold = 5;
   const int anchorThreshold = 3;
-  const int scanInterval = 1;
+  const int scanInterval = 2;
   extractAnchors(grad,dirMap,anchorList,gradThreshold, anchorThreshold, scanInterval);
   for (const auto& point: anchorList) {
     anchorMap.at<uchar>(point[0],point[1]) = 255;

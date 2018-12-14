@@ -4,10 +4,114 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include "Transformations.hpp"
+#include "EdgeDrawing.hpp"
 
 using namespace cv;
 
-void extractSeeds(Mat& img_gray, std::vector<Point>& dst, int size=10, int threshold = 20) {
+// This describes the line, not the gradient
+// and in terms of the user viewing the image
+enum GRAD_ID {HORIZONTAL =0, UPHILL=1, VERTICAL=2, DOWNHILL=3};
+
+GRAD_ID getGradID(const short grad_x, const short grad_y) {
+  float ratio = grad_y != 0 ? ((float)grad_x)/grad_y : ((float)grad_x)/0.0001;
+  if (abs(ratio) < 0.41) {
+    return HORIZONTAL;
+  }
+  if (ratio > 0.41 and ratio < 2.41) {
+    return UPHILL;
+  }
+  if (ratio > 2.41 or ratio < -2.41) {
+    return VERTICAL;
+  }
+  return DOWNHILL;
+}
+
+GRAD_ID getGradID(const Mat gradMap[], const Point pt) {
+  const short grad_x = gradMap[0].at<short>(pt.x, pt.y);
+  const short grad_y = gradMap[1].at<short>(pt.x, pt.y);
+  return getGradID(grad_x, grad_y);
+}
+
+void computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[]) {
+  Mat abs_grad_x, abs_grad_y;
+  int ddepth = CV_16S;
+  cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
+  cv::Sobel( image_gray, gradMap[1], ddepth, 0, 1, 3 );
+  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.4);
+  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.4);
+  cv::add(abs_grad_x, abs_grad_y, edgeMap);
+}
+
+inline bool isValidSeed( const int x, const int y, const Mat& edgeMap, const Mat gradMap[],
+                 const int gradThreshold=10) {
+  if (edgeMap.at<uchar>(x,y) < gradThreshold) return false;
+  GRAD_ID grad_id = getGradID(gradMap, Point(x,y));
+  switch (grad_id) {
+    case HORIZONTAL:  if (edgeMap.at<uchar>(x,y+1) < gradThreshold or
+                          edgeMap.at<uchar>(x,y-1) < gradThreshold) {
+                        return false;
+                      } break;
+    case UPHILL:      if (edgeMap.at<uchar>(x-1,y+1) < gradThreshold or
+                          edgeMap.at<uchar>(x+1,y-1) < gradThreshold) {
+                        return false;
+                      } break;
+    case VERTICAL:    if (edgeMap.at<uchar>(x+1,y) < gradThreshold or
+                          edgeMap.at<uchar>(x-1,y) < gradThreshold) {
+                        return false;
+                      } break;
+    case DOWNHILL:    if (edgeMap.at<uchar>(x+1,y+1) < gradThreshold or
+                          edgeMap.at<uchar>(x-1,y-1) < gradThreshold) {
+                        return false;
+                      } break;
+  }
+
+  return true;
+}
+
+inline void shiftSeed(Point& seed, const Mat& edgeMap, const Mat gradMap[]) {
+  GRAD_ID grad_id  = getGradID(gradMap, seed);
+  uchar edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+  switch (grad_id) {
+    case HORIZONTAL: while (edgeVal < edgeMap.at<uchar>(seed.x+1, seed.y)) {
+                      seed.x++;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    while (edgeVal < edgeMap.at<uchar>(seed.x-1, seed.y)) {
+                      seed.x--;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    break;
+    case UPHILL:    while (edgeVal < edgeMap.at<uchar>(seed.x-1, seed.y-1)) {
+                      seed.x--; seed.y--;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    while(edgeVal < edgeMap.at<uchar>(seed.x+1, seed.y+1)) {
+                      seed.x++; seed.y++;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    break;
+    case VERTICAL:  while (edgeVal < edgeMap.at<uchar>(seed.x, seed.y+1)) {
+                      seed.y++;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    while (edgeVal < edgeMap.at<uchar>(seed.x, seed.y-1)) {
+                      seed.y--;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    break;
+    case DOWNHILL:  while (edgeVal < edgeMap.at<uchar>(seed.x-1, seed.y+1)) {
+                      seed.x--; seed.y++;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    while (edgeVal < edgeMap.at<uchar>(seed.x+1, seed.y-1)) {
+                      seed.x++; seed.y--;
+                      edgeVal = edgeMap.at<uchar>(seed.x, seed.y);
+                    }
+                    break;
+  }
+}
+
+void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst, int size=15, int threshold = 15) {
   Mat region_frame;
   Point current_pt;
   Point offset = Point(size,size);
@@ -16,38 +120,67 @@ void extractSeeds(Mat& img_gray, std::vector<Point>& dst, int size=10, int thres
   Point minLoc;
   Point maxLoc;
 
-  for(int y=0; y<=(img_gray.rows - size); y+=size)
-  {
-      for(int x=0; x<=(img_gray.cols - size); x+=size)
-      {
+  for(int y=5; y<=(edgeMap.rows - size); y+=size) {
+      for(int x=5; x<=(edgeMap.cols - size); x+=size) {
           current_pt.x = x;
           current_pt.y = y;
           Rect region = Rect(current_pt, current_pt+offset);
-          region_frame = img_gray(region);
+          region_frame = edgeMap(region);
           minMaxLoc( region_frame, &minVal, &maxVal, &minLoc, &maxLoc );
-          if (maxVal >= threshold) {
+          if (isValidSeed(y+maxLoc.y, x+maxLoc.x, edgeMap, gradMap)) {
             dst.push_back(Point(maxLoc.y+y, maxLoc.x+x));
           }
       }
   }
 }
 
-void displaySeedLocations(Mat& img_gray) {
-  Mat edges;
-  edgeDetector(img_gray, edges);
-  std::vector<Point> seeds;
-  extractSeeds(edges, seeds, 10);
-  std::printf("There are %d seeds\n", static_cast<int>(seeds.size()));
-  Mat seedMap = Mat::zeros(img_gray.rows, img_gray.cols, CV_8U);
-  for (const auto& seed: seeds) {
-    seedMap.at<uchar>(seed.x,seed.y) = 255;
+void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
+  // success = exploreContour(explore_length=7)
+  // if success
+  //   contour_type = characterizeContour
+  //   if contour_type = line:
+  //     do (extendLine)
+  //       until error > threshold
+  //   else if contour_type = circle:
+  //     do (extendCircle)
+  //       until error > threshold
+
+}
+
+void extractContours(Mat & img_gray) {
+  // edgeMap, gradMap = computeEdgeAndGradMap(img)
+  // seeds = extractSeeds()
+  // for seed in seeds:
+  //   expand seed
+  suppressNoise(img_gray, img_gray);
+  Mat edgeMap;
+  Mat gradMap[] = {Mat(img_gray.rows, img_gray.cols, CV_16S),
+                   Mat(img_gray.rows, img_gray.cols, CV_16S)};
+  computeEdgeAndGradMap(img_gray, edgeMap, gradMap);
+
+  std::vector<cv::Point> seeds;
+  clock_t t = clock();
+  extractSeeds(edgeMap, gradMap, seeds);
+  t = clock() - t;
+  std::printf("I extracted seeds in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+    // expandSeed(seeds[0], edgeMap, gradMap);
+
+  // visualization for debugging
+  Mat color;
+  cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
+  for (auto& seed: seeds) {
+    shiftSeed(seed, edgeMap, gradMap);
+    color.at<Vec3b>(seed.x,seed.y)[0] = 0;
+    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
+    color.at<Vec3b>(seed.x,seed.y)[2] = 255;
   }
 
   namedWindow("Seed Map", WINDOW_NORMAL );
   resizeWindow("Seed Map", 1000, 800);
-  imshow("Seed Map", edges );
+  imshow("Seed Map", color );
   waitKey(0);
-}
 
+}
 
 #endif

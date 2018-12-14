@@ -21,7 +21,7 @@ int main(int argc, char** argv )
   convertToBWRGYB(image, BW, RG, YB);
   // runEdgeDrawing(image_gray);
   // runLineDrawing(image_gray);
-  displaySeedLocations(image_gray);
+  extractContours(image_gray);
   // namedWindow("Line Map", WINDOW_NORMAL );
   // resizeWindow("Line Map", 1000, 800);
   // imshow("Line Map", BW );
