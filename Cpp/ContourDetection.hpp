@@ -5,6 +5,7 @@
 #include <vector>
 #include "Transformations.hpp"
 #include "EdgeDrawing.hpp"
+#include <algorithm>
 
 using namespace cv;
 
@@ -12,7 +13,7 @@ using namespace cv;
 // and in terms of the user viewing the image
 enum GRAD_ID {HORIZONTAL =0, UPHILL=1, VERTICAL=2, DOWNHILL=3};
 
-GRAD_ID getGradID(const short grad_x, const short grad_y) {
+inline GRAD_ID getGradID(const short grad_x, const short grad_y) {
   float ratio = grad_y != 0 ? ((float)grad_x)/grad_y : ((float)grad_x)/0.0001;
   if (abs(ratio) < 0.41) {
     return HORIZONTAL;
@@ -26,7 +27,7 @@ GRAD_ID getGradID(const short grad_x, const short grad_y) {
   return DOWNHILL;
 }
 
-GRAD_ID getGradID(const Mat gradMap[], const Point pt) {
+inline GRAD_ID getGradID(const Mat gradMap[], const Point& pt) {
   const short grad_x = gradMap[0].at<short>(pt.x, pt.y);
   const short grad_y = gradMap[1].at<short>(pt.x, pt.y);
   return getGradID(grad_x, grad_y);
@@ -37,9 +38,27 @@ void computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[]) {
   int ddepth = CV_16S;
   cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
   cv::Sobel( image_gray, gradMap[1], ddepth, 0, 1, 3 );
-  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.4);
-  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.4);
+  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.25);
+  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.25);
   cv::add(abs_grad_x, abs_grad_y, edgeMap);
+}
+
+inline void moveAlongContour(cv::Point& new_pt, const GRAD_ID& grad_id,
+                              const Mat& edgeMap, const bool dir = true) {
+    static cv::Point offsets[] = {Point(0,1), Point(-1,1), Point(-1,0),
+                                  Point(-1,-1), Point(0,-1), Point(1,-1),
+                                  Point(1,0), Point(1,1)};
+    int id = dir ? grad_id: grad_id+4;
+    int max_val = edgeMap.at<uchar>(new_pt.x+offsets[id].x, new_pt.y+offsets[id].y);
+    int max_id = id;
+    if (max_val < edgeMap.at<uchar>(new_pt.x+offsets[(id+1) % 8].x,
+                                    new_pt.y+offsets[(id+1) % 8].y)) {
+        max_id = (id+1) % 8;
+    } else if (max_val < edgeMap.at<uchar>(new_pt.x+offsets[(id-1) % 8].x,
+                                    new_pt.y+offsets[(id-1) % 8].y)) {
+        max_id = (id-1) % 8;
+    }
+    new_pt += offsets[max_id];
 }
 
 inline bool isValidSeed( const int x, const int y, const Mat& edgeMap, const Mat gradMap[],
@@ -134,6 +153,25 @@ void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst, int size
   }
 }
 
+bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
+                    std::vector<cv::Point>& contour, const int explore_length=30) {
+    GRAD_ID grad_id;
+    cv::Point new_pt = Point(seed);
+    for (int i = 0; i < explore_length; i++) {
+      grad_id = getGradID(gradMap, new_pt);
+      moveAlongContour(new_pt, grad_id, edgeMap, true);
+      contour.push_back(new_pt);
+    }
+    std::reverse(std::begin(contour), std::end(contour));
+    contour.push_back(seed);
+    new_pt = Point(seed);
+    for (int i = 0; i < explore_length; i++) {
+      grad_id = getGradID(gradMap, new_pt);
+      moveAlongContour(new_pt, grad_id, edgeMap, false);
+      contour.push_back(new_pt);
+    }
+}
+
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
   // success = exploreContour(explore_length=7)
   // if success
@@ -166,11 +204,14 @@ void extractContours(Mat & img_gray) {
               ((float)t)/CLOCKS_PER_SEC*1000.0);
     // expandSeed(seeds[0], edgeMap, gradMap);
 
+  std::vector<cv::Point> contour;
+  shiftSeed(seeds[100], edgeMap, gradMap);
+  exploreContour(seeds[100], edgeMap, gradMap, contour);
   // visualization for debugging
   Mat color;
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
-  for (auto& seed: seeds) {
-    shiftSeed(seed, edgeMap, gradMap);
+  for (auto& seed: contour) {
+    // shiftSeed(seed, edgeMap, gradMap);
     color.at<Vec3b>(seed.x,seed.y)[0] = 0;
     color.at<Vec3b>(seed.x,seed.y)[1] = 0;
     color.at<Vec3b>(seed.x,seed.y)[2] = 255;
