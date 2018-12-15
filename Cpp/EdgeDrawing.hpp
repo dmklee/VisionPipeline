@@ -15,7 +15,7 @@ typedef std::vector< seg_type > segList_type;
 
 
 void suppressNoise(const Mat& img, Mat& dst) {
-  cv::Size ksize = {5,5};
+  cv::Size ksize(5,5);
   double sigma = 1.0;
   cv::GaussianBlur(img,dst,ksize,sigma);
 }
@@ -75,7 +75,8 @@ void extractAnchors(const Mat& grad, const Mat& dirMap, seg_type& anchorList,
   for (int i = 1; i < (grad.rows-1); i += scanInterval) {
     for (int j = 1; j < (grad.cols-1); j += scanInterval) {
       if (isAnchor(i,j,grad,dirMap, gradThreshold, anchorThreshold)) {
-        anchorList.push_back({i,j});
+        pt_type tmp= {i,j};
+        anchorList.push_back(tmp);
       }
     }
   }
@@ -98,7 +99,8 @@ int edgelWalkUp(int x, int y, const Mat& grad, const Mat& dirMap,
     } else{
       --x;
     }
-    edgeSeg.push_back({x,y});
+    pt_type tmp= {x,y};
+    edgeSeg.push_back(tmp);
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           !isHorizontal(dirMap,x,y));
   if (isValidEdgel(grad,x,y) and !isOccupied(edgeMap,x,y)) {
@@ -125,7 +127,8 @@ int edgelWalkDown(int x, int y, const Mat& grad, const Mat& dirMap,
     } else{
       ++x;
     }
-    edgeSeg.push_back({x,y});
+    pt_type tmp= {x,y};
+    edgeSeg.push_back(tmp);
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           !isHorizontal(dirMap,x,y));
   if (isValidEdgel(grad, x, y) and !isOccupied(edgeMap, x, y)) {
@@ -152,7 +155,8 @@ int edgelWalkLeft(int x, int y, const Mat& grad, const Mat& dirMap,
     } else{
       --y;
     }
-    edgeSeg.push_back({x,y});
+    pt_type tmp= {x,y};
+    edgeSeg.push_back(tmp);
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           isHorizontal(dirMap,x,y));
   if (isValidEdgel(grad, x, y) and !isOccupied(edgeMap, x, y)) {
@@ -179,7 +183,8 @@ int edgelWalkRight(int x, int y, const Mat& grad, const Mat& dirMap,
     } else{
       ++y;
     }
-    edgeSeg.push_back({x,y});
+    pt_type tmp= {x,y};
+    edgeSeg.push_back(tmp);
   } while (isValidEdgel(grad, x, y) and !isOccupied(edgeMap,x,y) and
           isHorizontal(dirMap,x,y));
   if (isValidEdgel(grad, x, y) and !isOccupied(edgeMap, x, y)) {
@@ -244,7 +249,8 @@ void expandAnchor(const Mat& grad, const Mat& dirMap, Mat& edgeMap,
     was_Horizontal = !was_Horizontal;
   }
   dst.insert(dst.end(),seg_A.rbegin(), seg_A.rend());
-  dst.push_back({x,y});
+  pt_type tmp= {x,y};
+  dst.push_back(tmp);
   dst.insert(dst.end(),seg_B.begin(),seg_B.end());
 }
 

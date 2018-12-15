@@ -154,7 +154,8 @@ void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst, int size
 }
 
 bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
-                    std::vector<cv::Point>& contour, const int explore_length=30) {
+                    std::vector<cv::Point>& contour, const int explore_length=4) {
+    // add early failure detection
     GRAD_ID grad_id;
     cv::Point new_pt = Point(seed);
     for (int i = 0; i < explore_length; i++) {
@@ -170,6 +171,45 @@ bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
       moveAlongContour(new_pt, grad_id, edgeMap, false);
       contour.push_back(new_pt);
     }
+    return true;
+}
+
+double linearFit(const std::vector<Point>& contour) {
+  double sumX, sumY, sumXY, sumX2;
+  sumX = sumY = sumXY = sumX2 = 0.0;
+  for (const auto& pt: contour) {
+    sumX += pt.x;
+    sumY += pt.y;
+    sumXY += pt.x*pt.y;
+    sumX2 += pt.x*pt.x;
+  }
+  size_t lineLength = contour.size();
+  double xMean = sumX / lineLength;
+  double yMean = sumY / lineLength;
+  double denom = sumX2 - sumX * xMean;
+  double A, B, C;
+  if (std::fabs(denom) < 1e-7) {
+    //vertical line
+    A = 1.0;
+    B = 0.0;
+    C = -xMean;
+  } else {
+    A = -(sumXY - sumX * yMean) / denom;
+    B = 1.0;
+    C = - (yMean + A * xMean);
+  }
+  // now compute the root mean square error
+  double error = 0.0;
+  for (const auto& pt: contour) {
+    error += pow(A*pt.x + B*pt.y + C, 2.0);
+  }
+  return sqrt(error/lineLength);
+}
+
+int characterizeContour() {
+  return 0; //Line
+  return 1; //Circle
+  return -1; //No good fit
 }
 
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
@@ -200,13 +240,15 @@ void extractContours(Mat & img_gray) {
   clock_t t = clock();
   extractSeeds(edgeMap, gradMap, seeds);
   t = clock() - t;
-  std::printf("I extracted seeds in %f ms\n",
+  std::printf("I extracted %d seeds in %f ms\n", static_cast<int>(seeds.size()),
               ((float)t)/CLOCKS_PER_SEC*1000.0);
     // expandSeed(seeds[0], edgeMap, gradMap);
 
   std::vector<cv::Point> contour;
   shiftSeed(seeds[100], edgeMap, gradMap);
   exploreContour(seeds[100], edgeMap, gradMap, contour);
+  double error = linearFit(contour);
+  std::cout << error << "\n";
   // visualization for debugging
   Mat color;
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
@@ -223,5 +265,9 @@ void extractContours(Mat & img_gray) {
   waitKey(0);
 
 }
+
+
+
+// add early failure detection to expandContour
 
 #endif

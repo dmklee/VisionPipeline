@@ -114,7 +114,8 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
   if (error > maxFitError) return; // out of pixels
 
   for (int i=0; i != minLineLength; ++i) {
-    L._data.push_back({(*(it+i))[0],(*(it+i))[1]});
+    pt_type tmp= {(*(it+i))[0],(*(it+i))[1]};
+    L._data.push_back(tmp);
   }
 
   int lineLength = minLineLength;
@@ -123,7 +124,8 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
   while (lineLength < numPixels) {
     d = computePointDistance2Line(L, it);
     if (d > maxFitError) break;
-    L._data.push_back({(*it)[0],(*it)[1]});
+    pt_type tmp= {(*(it))[0],(*(it))[1]};
+    L._data.push_back(tmp);
     lineLength++;
     it++;
   }
@@ -150,7 +152,7 @@ void generateLines(segList_type& edgeSegments, lineChainList_type& dst,
 }
 
 void makeLineMap(lineChainList_type& lineChainList, Mat& lineMap) {
-  Scalar color = {0,0,255};
+  Scalar color(0,0,255);
   int thickness = 1;
   int x1, y1, x2, y2;
   for (const auto& lineChain: lineChainList) {
