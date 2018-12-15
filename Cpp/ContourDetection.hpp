@@ -154,7 +154,7 @@ void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst, int size
 }
 
 bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
-                    std::vector<cv::Point>& contour, const int explore_length=4) {
+                    std::vector<cv::Point>& contour, const int explore_length=8) {
     // add early failure detection
     GRAD_ID grad_id;
     cv::Point new_pt = Point(seed);
@@ -206,10 +206,12 @@ double linearFit(const std::vector<Point>& contour) {
   return sqrt(error/lineLength);
 }
 
-int characterizeContour() {
-  return 0; //Line
-  return 1; //Circle
-  return -1; //No good fit
+
+int characterizeContour(const std::vector<cv::Point>& contour) {
+  double radius = circularFit(contour);
+  std::printf("%f\n", radius);
+  //0 for line, 1 for circle
+  return radius > 40 ? 0 : 1;
 }
 
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
@@ -244,26 +246,28 @@ void extractContours(Mat & img_gray) {
               ((float)t)/CLOCKS_PER_SEC*1000.0);
     // expandSeed(seeds[0], edgeMap, gradMap);
 
-  std::vector<cv::Point> contour;
-  shiftSeed(seeds[100], edgeMap, gradMap);
-  exploreContour(seeds[100], edgeMap, gradMap, contour);
-  double error = linearFit(contour);
-  std::cout << error << "\n";
   // visualization for debugging
   Mat color;
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
-  for (auto& seed: contour) {
-    // shiftSeed(seed, edgeMap, gradMap);
-    color.at<Vec3b>(seed.x,seed.y)[0] = 0;
-    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    color.at<Vec3b>(seed.x,seed.y)[2] = 255;
+
+  std::vector<cv::Point> contour;
+  for (auto& seed: seeds) {
+    shiftSeed(seed, edgeMap, gradMap);
+    contour.clear();
+    exploreContour(seed, edgeMap,gradMap, contour, 400);
+    int contour_type = characterizeContour(contour);
+    for (auto& pt: contour) {
+      color.at<Vec3b>(pt.x,pt.y)[0] = contour_type==0 ? 255 : 0;
+      color.at<Vec3b>(pt.x,pt.y)[1] = 0;
+      color.at<Vec3b>(pt.x,pt.y)[2] = contour_type==1 ? 255 : 0;
+    }
+    break;
   }
 
   namedWindow("Seed Map", WINDOW_NORMAL );
   resizeWindow("Seed Map", 1000, 800);
   imshow("Seed Map", color );
   waitKey(0);
-
 }
 
 
