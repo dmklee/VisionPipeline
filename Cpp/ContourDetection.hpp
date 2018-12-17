@@ -9,6 +9,8 @@
 
 using namespace cv;
 
+typedef std::vector<cv::Point>::const_iterator vec_iter_t;
+
 // This describes the line, not the gradient
 // and in terms of the user viewing the image
 enum GRAD_ID {HORIZONTAL =0, UPHILL=1, VERTICAL=2, DOWNHILL=3};
@@ -174,16 +176,16 @@ bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
     return true;
 }
 
-double linearFit(const std::vector<Point>& contour) {
+void linearFit(const vec_iter_t& start, const vec_iter_t& end, std::array<cv::Point2f,2>& params) {
   double sumX, sumY, sumXY, sumX2;
   sumX = sumY = sumXY = sumX2 = 0.0;
-  for (const auto& pt: contour) {
-    sumX += pt.x;
-    sumY += pt.y;
-    sumXY += pt.x*pt.y;
-    sumX2 += pt.x*pt.x;
+  for (vec_iter_t i = start; i != end; i++) {
+    sumX += i->x;
+    sumY += i->y;
+    sumXY += i->x*i->y;
+    sumX2 += i->x*i->x;
   }
-  size_t lineLength = contour.size();
+  size_t lineLength = end - start;
   double xMean = sumX / lineLength;
   double yMean = sumY / lineLength;
   double denom = sumX2 - sumX * xMean;
@@ -198,20 +200,32 @@ double linearFit(const std::vector<Point>& contour) {
     B = 1.0;
     C = - (yMean + A * xMean);
   }
-  // now compute the root mean square error
-  double error = 0.0;
-  for (const auto& pt: contour) {
-    error += pow(A*pt.x + B*pt.y + C, 2.0);
-  }
-  return sqrt(error/lineLength);
+  //perform a projection
+  std::printf("%i, %i\n", (start + lineLength/2)->x, (start + lineLength/2)->y);
+  cv::Point2f n_vec(B,A);
+  cv::Point2f samp_pt(-(B*(start + lineLength/2)->y+C)/A, (start + lineLength/2)->y);
+  cv::Point2f r_vec;
+
+  r_vec.x = samp_pt.x - (start + lineLength/2)->x;
+  r_vec.y = samp_pt.y - (start + lineLength/2)->y;
+
+  cv::Point2f r1_vec = (r_vec.ddot(n_vec)/(sqrt(r_vec.ddot(r_vec))*n_vec.ddot(n_vec)))*n_vec;
+  params[0] = n_vec; // normal vector of line
+  params[1] = samp_pt + r1_vec;
 }
 
-
 int characterizeContour(const std::vector<cv::Point>& contour) {
-  double radius = circularFit(contour);
-  std::printf("%f\n", radius);
-  //0 for line, 1 for circle
-  return radius > 40 ? 0 : 1;
+  size_t contourLength = contour.size();
+  std::array<cv::Point2f,2> inner_params, outer_params;
+  linearFit(contour.begin()+contourLength/4, contour.end()-contourLength/4,
+            inner_params);
+  linearFit(contour.begin(), contour.end(), outer_params);
+
+  std::printf("Inner: n=(%0.1f,%0.1f), pt=(%0.1f,%0.1f)\n", inner_params[0].x,
+                      inner_params[0].y, inner_params[1].x, inner_params[1].y);
+  std::printf("Outer: n=(%0.1f,%0.1f), pt=(%0.1f,%0.1f)\n", outer_params[0].x,
+                      outer_params[0].y, outer_params[1].x, outer_params[1].y);  //0 for line, 1 for circle
+  return 0;
 }
 
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
@@ -251,10 +265,11 @@ void extractContours(Mat & img_gray) {
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
 
   std::vector<cv::Point> contour;
+  std::copy(seeds.begin()+50,seeds.end(), seeds.begin());
   for (auto& seed: seeds) {
     shiftSeed(seed, edgeMap, gradMap);
     contour.clear();
-    exploreContour(seed, edgeMap,gradMap, contour, 400);
+    exploreContour(seed, edgeMap,gradMap, contour, 16);
     int contour_type = characterizeContour(contour);
     for (auto& pt: contour) {
       color.at<Vec3b>(pt.x,pt.y)[0] = contour_type==0 ? 255 : 0;

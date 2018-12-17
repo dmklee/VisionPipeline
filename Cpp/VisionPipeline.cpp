@@ -7,11 +7,12 @@
 #include "ContourDetection.hpp"
 
 using namespace cv;
+//g++ $(pkg-config --cflags --libs opencv) -w VisionPipeline.cpp -o VisionPipeline
 
 int main(int argc, char** argv )
 
 {
-  Mat image = imread("../Pics/circle.png", 1);
+  Mat image = imread("../Pics/small_circle.png", 1);
   Mat image_gray;
   cvtColor( image, image_gray, CV_BGR2GRAY );
   // suppressNoise(image, image);
