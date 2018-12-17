@@ -258,7 +258,6 @@ void extractContours(Mat & img_gray) {
   t = clock() - t;
   std::printf("I extracted %d seeds in %f ms\n", static_cast<int>(seeds.size()),
               ((float)t)/CLOCKS_PER_SEC*1000.0);
-    // expandSeed(seeds[0], edgeMap, gradMap);
 
   // visualization for debugging
   Mat color;
