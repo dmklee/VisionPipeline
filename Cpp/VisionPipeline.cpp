@@ -12,7 +12,7 @@ using namespace cv;
 int main(int argc, char** argv )
 
 {
-  Mat image = imread("../Pics/small_circle.png", 1);
+  Mat image = imread("../Pics/toyblocks.png", 1);
   Mat image_gray;
   cvtColor( image, image_gray, CV_BGR2GRAY );
   // suppressNoise(image, image);
@@ -21,8 +21,8 @@ int main(int argc, char** argv )
   Mat YB = Mat(image.rows,image.cols, CV_8UC1);
   convertToBWRGYB(image, BW, RG, YB);
   // runEdgeDrawing(image_gray);
-  // runLineDrawing(image_gray);
-  extractContours(image_gray);
+  runLineDrawing(image_gray);
+  // extractContours(BW);
   // namedWindow("Line Map", WINDOW_NORMAL );
   // resizeWindow("Line Map", 1000, 800);
   // imshow("Line Map", BW );

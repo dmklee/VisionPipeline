@@ -40,27 +40,30 @@ void computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[]) {
   int ddepth = CV_16S;
   cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
   cv::Sobel( image_gray, gradMap[1], ddepth, 0, 1, 3 );
-  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.25);
-  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.25);
+  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.3);
+  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.3);
   cv::add(abs_grad_x, abs_grad_y, edgeMap);
 }
 
-inline void moveAlongContour(cv::Point& new_pt, const GRAD_ID& grad_id,
+inline int moveAlongContour(cv::Point& new_pt, const GRAD_ID& grad_id,
                               const Mat& edgeMap, const bool dir = true) {
     static cv::Point offsets[] = {Point(0,1), Point(-1,1), Point(-1,0),
                                   Point(-1,-1), Point(0,-1), Point(1,-1),
                                   Point(1,0), Point(1,1)};
+
     int id = dir ? grad_id: grad_id+4;
     int max_val = edgeMap.at<uchar>(new_pt.x+offsets[id].x, new_pt.y+offsets[id].y);
     int max_id = id;
     if (max_val < edgeMap.at<uchar>(new_pt.x+offsets[(id+1) % 8].x,
                                     new_pt.y+offsets[(id+1) % 8].y)) {
         max_id = (id+1) % 8;
-    } else if (max_val < edgeMap.at<uchar>(new_pt.x+offsets[(id-1) % 8].x,
-                                    new_pt.y+offsets[(id-1) % 8].y)) {
-        max_id = (id-1) % 8;
+    } else if (max_val < edgeMap.at<uchar>(new_pt.x+offsets[(id+7) % 8].x,
+                                    new_pt.y+offsets[(id+7) % 8].y)) {
+        max_id = (id+7) % 8;
     }
     new_pt += offsets[max_id];
+
+    return static_cast<int>(edgeMap.at<uchar>(new_pt.x, new_pt.y));
 }
 
 inline bool isValidSeed( const int x, const int y, const Mat& edgeMap, const Mat gradMap[],
@@ -160,9 +163,11 @@ bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
     // add early failure detection
     GRAD_ID grad_id;
     cv::Point new_pt = Point(seed);
+    int edgeVal;// = edgeMsp.at<uchar>(seed.x, seed.y);
     for (int i = 0; i < explore_length; i++) {
       grad_id = getGradID(gradMap, new_pt);
-      moveAlongContour(new_pt, grad_id, edgeMap, true);
+      edgeVal = moveAlongContour(new_pt, grad_id, edgeMap, true);
+      if (edgeVal < 15) return false;
       contour.push_back(new_pt);
     }
     std::reverse(std::begin(contour), std::end(contour));
@@ -170,13 +175,14 @@ bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
     new_pt = Point(seed);
     for (int i = 0; i < explore_length; i++) {
       grad_id = getGradID(gradMap, new_pt);
-      moveAlongContour(new_pt, grad_id, edgeMap, false);
+      edgeVal = moveAlongContour(new_pt, grad_id, edgeMap, false);
+      if (edgeVal < 15) return false;
       contour.push_back(new_pt);
     }
     return true;
 }
 
-void linearFit(const vec_iter_t& start, const vec_iter_t& end, std::array<cv::Point2f,2>& params) {
+void linearFit(const vec_iter_t& start, const vec_iter_t& end, cv::Point3f& params) {
   double sumX, sumY, sumXY, sumX2;
   sumX = sumY = sumXY = sumX2 = 0.0;
   for (vec_iter_t i = start; i != end; i++) {
@@ -200,32 +206,9 @@ void linearFit(const vec_iter_t& start, const vec_iter_t& end, std::array<cv::Po
     B = 1.0;
     C = - (yMean + A * xMean);
   }
-  //perform a projection
-  std::printf("%i, %i\n", (start + lineLength/2)->x, (start + lineLength/2)->y);
-  cv::Point2f n_vec(B,A);
-  cv::Point2f samp_pt(-(B*(start + lineLength/2)->y+C)/A, (start + lineLength/2)->y);
-  cv::Point2f r_vec;
 
-  r_vec.x = samp_pt.x - (start + lineLength/2)->x;
-  r_vec.y = samp_pt.y - (start + lineLength/2)->y;
-
-  cv::Point2f r1_vec = (r_vec.ddot(n_vec)/(sqrt(r_vec.ddot(r_vec))*n_vec.ddot(n_vec)))*n_vec;
-  params[0] = n_vec; // normal vector of line
-  params[1] = samp_pt + r1_vec;
-}
-
-int characterizeContour(const std::vector<cv::Point>& contour) {
-  size_t contourLength = contour.size();
-  std::array<cv::Point2f,2> inner_params, outer_params;
-  linearFit(contour.begin()+contourLength/4, contour.end()-contourLength/4,
-            inner_params);
-  linearFit(contour.begin(), contour.end(), outer_params);
-
-  std::printf("Inner: n=(%0.1f,%0.1f), pt=(%0.1f,%0.1f)\n", inner_params[0].x,
-                      inner_params[0].y, inner_params[1].x, inner_params[1].y);
-  std::printf("Outer: n=(%0.1f,%0.1f), pt=(%0.1f,%0.1f)\n", outer_params[0].x,
-                      outer_params[0].y, outer_params[1].x, outer_params[1].y);  //0 for line, 1 for circle
-  return 0;
+  params.x = A; params.y = B; params.z = C;
+  params /= sqrt(pow(A,2)+B);
 }
 
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
@@ -242,18 +225,24 @@ void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
 }
 
 void extractContours(Mat & img_gray) {
-  // edgeMap, gradMap = computeEdgeAndGradMap(img)
-  // seeds = extractSeeds()
-  // for seed in seeds:
-  //   expand seed
+  std::printf("--- Running Contour Detection ---\n" );
+  clock_t t = clock();
   suppressNoise(img_gray, img_gray);
+  t = clock()-t;
+  std::printf("I applied gaussian filter in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+
+  t = clock();
   Mat edgeMap;
   Mat gradMap[] = {Mat(img_gray.rows, img_gray.cols, CV_16S),
                    Mat(img_gray.rows, img_gray.cols, CV_16S)};
   computeEdgeAndGradMap(img_gray, edgeMap, gradMap);
+  t = clock()-t;
+  std::printf("I computed edge and gradient maps in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
 
   std::vector<cv::Point> seeds;
-  clock_t t = clock();
+  t = clock();
   extractSeeds(edgeMap, gradMap, seeds);
   t = clock() - t;
   std::printf("I extracted %d seeds in %f ms\n", static_cast<int>(seeds.size()),
@@ -264,26 +253,38 @@ void extractContours(Mat & img_gray) {
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
 
   std::vector<cv::Point> contour;
-  std::copy(seeds.begin()+50,seeds.end(), seeds.begin());
+  // seeds.clear();
+  // seeds.push_back(cv::Point(349,65));
+  t = clock();
   for (auto& seed: seeds) {
     shiftSeed(seed, edgeMap, gradMap);
     contour.clear();
-    exploreContour(seed, edgeMap,gradMap, contour, 16);
-    int contour_type = characterizeContour(contour);
-    for (auto& pt: contour) {
-      color.at<Vec3b>(pt.x,pt.y)[0] = contour_type==0 ? 255 : 0;
-      color.at<Vec3b>(pt.x,pt.y)[1] = 0;
-      color.at<Vec3b>(pt.x,pt.y)[2] = contour_type==1 ? 255 : 0;
+    int contourLength = 12;
+    if (!exploreContour(seed, edgeMap,gradMap, contour, contourLength)) {
+      continue;
     }
-    break;
+  //   cv::Point3f lineParams;
+  //   linearFit(contour.begin(), contour.end(), lineParams);
+  //   for (auto& pt: contour) {
+  //     color.at<Vec3b>(pt.x,pt.y)[0] = 0;
+  //     color.at<Vec3b>(pt.x,pt.y)[1] = 0;
+  //     color.at<Vec3b>(pt.x,pt.y)[2] = 255;
+  //   }
+  //   int new_x = static_cast<int>(12*lineParams.x);
+  //   int new_y = static_cast<int>(12*lineParams.y);
+  //   cv::Point start(contour[contourLength].y, contour[contourLength].x);
+  // cv::line(color, start, start+cv::Point(new_y, new_x), Scalar(0,255,0));
+  // break;
   }
+  t = clock() - t;
+  std::printf("I explored contours in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
 
   namedWindow("Seed Map", WINDOW_NORMAL );
   resizeWindow("Seed Map", 1000, 800);
   imshow("Seed Map", color );
   waitKey(0);
 }
-
 
 
 // add early failure detection to expandContour

@@ -186,7 +186,7 @@ void runLineDrawing(Mat& img) {
   Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
   int gradThreshold = 5;
   int anchorThreshold = 3;
-  int scanInterval = 4;
+  int scanInterval = 1;
   int minLineLength = computeMinLineLength(grad);
   findEdgeSegments(grad, dirMap, edgeMap, edgeSegments, gradThreshold,
                   anchorThreshold, scanInterval, minLineLength);
@@ -205,7 +205,7 @@ void runLineDrawing(Mat& img) {
   std::printf("I generated %i line segments in %f ms\n", numLines,
               ((float)t)/CLOCKS_PER_SEC*1000.0);
 
-  Mat lineMap = Mat::zeros(grad.rows,grad.cols, CV_8U);
+  Mat lineMap = Mat(grad);//::zeros(grad.rows,grad.cols, CV_8U);
   cvtColor(lineMap, lineMap, cv::COLOR_GRAY2BGR);
   makeLineMap(lineChains, lineMap);
 
