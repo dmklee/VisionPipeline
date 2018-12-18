@@ -21,8 +21,8 @@ int main(int argc, char** argv )
   Mat YB = Mat(image.rows,image.cols, CV_8UC1);
   convertToBWRGYB(image, BW, RG, YB);
   // runEdgeDrawing(image_gray);
-  runLineDrawing(image_gray);
-  // extractContours(BW);
+  // runLineDrawing(image_gray);
+  extractContours(BW);
   // namedWindow("Line Map", WINDOW_NORMAL );
   // resizeWindow("Line Map", 1000, 800);
   // imshow("Line Map", BW );

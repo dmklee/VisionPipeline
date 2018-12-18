@@ -194,7 +194,7 @@ void linearFit(const vec_iter_t& start, const vec_iter_t& end,
 }
 
 bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
-                    std::vector<cv::Point>& contour, const int explore_length=8) {
+                    std::vector<cv::Point>& contour, const int explore_length=4) {
     // add early failure detection
     int grad_id;
     int last_grad_id = getGradID(gradMap,seed);
@@ -228,10 +228,15 @@ bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
     cv::Point3f lineParams;
     double error;
     linearFit(contour.begin(), contour.end(), lineParams, error);
-    return (error < 100.0);
+    return (error < 1.);
 }
 
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
+  // Point shifted_seed = shiftSeed(seed, edgeMap, gradMap);
+  // if (!exploreContour(shifted_seed, edgeMap, gradMap, contour)) {
+  //   return;
+  // }
+  // extendLine()
   // success = exploreContour(explore_length=7)
   // if success
   //   contour_type = characterizeContour
