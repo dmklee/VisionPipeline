@@ -1,0 +1,26 @@
+Main Issues to contend with:
+    [1] know where a valid edge exists
+        ~[1.1] sobel operator to calculate E, Gx, Gy
+        ~[1.2] identify local maximums of E
+        ~[1.3] shift seed locations up hill
+        [1.4] disregard unstable seeds
+            [1.4.1] look for linear fit accuracy
+            [1.4.2] look for consistent grad_ids nearby
+    [2] know when to stop following an edge
+        [2.1] break when sign of curvature changes
+            [2.1.1] keep linear model of the curvature
+
+        ~[2.2] break when discontinuity in curvature
+            [2.2.1] store running average of change in curvature
+
+        [2.3] break when edgel strength is too weak
+            [2.2.1] store information of normal edgel strength
+    [3] handling redundancy/overlap between contours
+    [4] identify location/shape of contour accurately
+        [4.1a] use ransac, keep randomly sampling 3 points along length of contour
+        [4.1b] ockhams razor, line then circular arc
+    [5] know how to predict behavior of an contour
+    [6] joining/relating contours into surfaces (ellipses, rectangles)
+        [6.1] look for contours that touch
+        [6.2] look for corners/centers of rotation
+        

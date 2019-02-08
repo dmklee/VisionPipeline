@@ -27,7 +27,16 @@ void edgeDetector(Mat& img_gray, Mat& edges) {
 
 void blur(Mat& img_gray, Mat& dst, Size ksize, double sigma) {
   GaussianBlur(img_gray,dst,ksize,sigma);
-  return;
+}
+
+void blur(Mat& img_gray, Size ksize, double sigma) {
+  GaussianBlur(img_gray, img_gray, ksize, sigma);
+}
+
+void addGaussianNoise(Mat& img, Mat& dst, double mean, double stddev) {
+  cv::Mat noise = Mat::zeros(img.size(), img.type());
+  cv::randn(noise, 122+mean, stddev);
+  dst += noise-122-mean;
 }
 
 void convertToBWRGYB(Mat& img_color, Mat& BW, Mat& RG, Mat& YB) {

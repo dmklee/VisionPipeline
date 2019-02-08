@@ -17,6 +17,12 @@ EdgeDrawing.hpp
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 algorithm
 -
+math.h
+-
+iostream
+-
+fstream
+-
 
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 opencv2/opencv.hpp
