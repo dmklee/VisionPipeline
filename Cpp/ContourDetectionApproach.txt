@@ -23,4 +23,5 @@ Main Issues to contend with:
     [6] joining/relating contours into surfaces (ellipses, rectangles)
         [6.1] look for contours that touch
         [6.2] look for corners/centers of rotation
-        
+    [7] handling noisy data
+        [7.1] have adaptive thresholding based on "noisiness" factor
