@@ -1,0 +1,17 @@
+ALG 1 - ExtractContours
+        INPUTS:  single-channel image
+        OUTPUTS: vector of contour locations
+
+    image = suppressNoise(image)
+    edgeMap, gradientMap = computeEdgeAndGradMap(image)
+    seeds = extractSeeds(edgeMap, gradientMap)
+    contour_locations <- []
+    for seed in seeds:
+       contour, model, success = growSeed(seed, edgeMap, gradientMap)
+        if !success:
+            continue
+        contour_type = classifyContour(model)
+        location = localizeContour(contour, contour_type)
+        contour_locations.append(location)
+
+    return contour_locations

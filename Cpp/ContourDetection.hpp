@@ -49,12 +49,12 @@ inline int subtractGradID_abs(const int& g1, const int& g2) {
   return diff;
 }
 
-inline int subtractGradID(const int& g1, const int& g2) {
-  std::printf("subtractGradID not working\n" );
-  int diff = abs(g1 - g2);
-  if (diff > 4) diff = 8 - diff;
-  return diff;
-}
+// inline int subtractGradID(const int& g1, const int& g2) {
+//   std::printf("subtractGradID not working\n" );
+//   int diff = abs(g1 - g2);
+//   if (diff > 4) diff = 8 - diff;
+//   return diff;
+// }
 
 void computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[]) {
   Mat abs_grad_x, abs_grad_y;
@@ -160,7 +160,8 @@ inline bool shiftSeed(Point& seed, const Mat& edgeMap, const Mat gradMap[]) {
   return edgeMap.at<uchar>(seed.x, seed.y) > 15;
 }
 
-void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst, int size=15, int threshold = 15) {
+void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst,
+                  int size=15, int threshold = 15) {
   Mat region_frame;
   Point current_pt;
   Point offset = Point(size,size);
@@ -292,60 +293,60 @@ inline double getAngleDifference( const double theta1, const double theta2) {
   return diff;
 }
 
-bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
-                    std::vector<cv::Point>& contour, const int explore_length=4) {
-    // add early failure detection
-    int grad_id;
-    cv::Point new_pt = Point(seed);
-    std::vector<float> v_grad_ids;
-    int edgeVal;
-    int del_grad_id;
-    float tmp;
-    for (int i = 0; i < explore_length; i++) {
-      grad_id = getGradID(gradMap, new_pt);
-      del_grad_id = moveAlongContour(new_pt, grad_id, edgeMap, edgeVal);
-      if (edgeVal < 15) return false;
-      contour.push_back(new_pt);
-      // tmp = grad_id + 0.5*del_grad_id;
-      // if (tmp < 0) tmp += 8;
-      // v_grad_ids.push_back(tmp);
-      v_grad_ids.push_back(getContourAngle(gradMap, new_pt));
-    }
-    std::reverse(std::begin(contour), std::end(contour));
-    std::reverse(std::begin(v_grad_ids), std::end(v_grad_ids));
-    contour.push_back(seed);
-    // v_grad_ids.push_back(getGradID(gradMap,seed));
-    v_grad_ids.push_back(getContourAngle(gradMap, seed));
-
-    new_pt = Point(seed);
-    for (int i = 0; i < explore_length; i++) {
-      grad_id = (getGradID(gradMap, new_pt)+4) % 8;
-      del_grad_id = moveAlongContour(new_pt, grad_id, edgeMap, edgeVal);
-      if (edgeVal < 15) return false;
-      contour.push_back(new_pt);
-      // tmp = grad_id + 4 + 0.5*del_grad_id;
-      // if (tmp > 8) tmp -= 8;
-      // v_grad_ids.push_back(((2*grad_id+del_grad_id+8)%16)/2.);
-      v_grad_ids.push_back(getContourAngle(gradMap, new_pt));
-    }
-
-    cv::Point3f lineParams;
-    double lin_error;
-    linearFit(contour.begin(), contour.end(), lineParams, lin_error);
-    if (lin_error > 1.) return false;
-
-    int g1 = v_grad_ids.front();
-    int g2 = v_grad_ids[explore_length];
-    int g3 = v_grad_ids.back();
-    // if (diff >= 2) std::cout << "\t";
-
-    return subtractGradID_abs(g1, g2) < 2 & subtractGradID_abs(g2, g3) < 2 &
-                subtractGradID_abs(g1, g3) < 2;
-}
+// bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
+//                     std::vector<cv::Point>& contour, const int explore_length=4) {
+//     // add early failure detection
+//     int grad_id;
+//     cv::Point new_pt = Point(seed);
+//     std::vector<float> v_grad_ids;
+//     int edgeVal;
+//     int del_grad_id;
+//     float tmp;
+//     for (int i = 0; i < explore_length; i++) {
+//       grad_id = getGradID(gradMap, new_pt);
+//       del_grad_id = moveAlongContour(new_pt, grad_id, edgeMap, edgeVal);
+//       if (edgeVal < 15) return false;
+//       contour.push_back(new_pt);
+//       // tmp = grad_id + 0.5*del_grad_id;
+//       // if (tmp < 0) tmp += 8;
+//       // v_grad_ids.push_back(tmp);
+//       v_grad_ids.push_back(getContourAngle(gradMap, new_pt));
+//     }
+//     std::reverse(std::begin(contour), std::end(contour));
+//     std::reverse(std::begin(v_grad_ids), std::end(v_grad_ids));
+//     contour.push_back(seed);
+//     // v_grad_ids.push_back(getGradID(gradMap,seed));
+//     v_grad_ids.push_back(getContourAngle(gradMap, seed));
+//
+//     new_pt = Point(seed);
+//     for (int i = 0; i < explore_length; i++) {
+//       grad_id = (getGradID(gradMap, new_pt)+4) % 8;
+//       del_grad_id = moveAlongContour(new_pt, grad_id, edgeMap, edgeVal);
+//       if (edgeVal < 15) return false;
+//       contour.push_back(new_pt);
+//       // tmp = grad_id + 4 + 0.5*del_grad_id;
+//       // if (tmp > 8) tmp -= 8;
+//       // v_grad_ids.push_back(((2*grad_id+del_grad_id+8)%16)/2.);
+//       v_grad_ids.push_back(getContourAngle(gradMap, new_pt));
+//     }
+//
+//     cv::Point3f lineParams;
+//     double lin_error;
+//     linearFit(contour.begin(), contour.end(), lineParams, lin_error);
+//     if (lin_error > 1.) return false;
+//
+//     int g1 = v_grad_ids.front();
+//     int g2 = v_grad_ids[explore_length];
+//     int g3 = v_grad_ids.back();
+//     // if (diff >= 2) std::cout << "\t";
+//
+//     return subtractGradID_abs(g1, g2) < 2 & subtractGradID_abs(g2, g3) < 2 &
+//                 subtractGradID_abs(g1, g3) < 2;
+// }
 
 void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[],
-                    std::vector<cv::Point>& contour, const bool direction=true,
-                    const int max_length=10)
+                    std::vector<cv::Point>& contour, std::array<double,3 >& model,
+                    const bool direction=true, const int max_length=10)
 {
   double alpha = 0.05;
   double angle_new, angle_old, d_angle_old, d_angle_new, dd_angle;
@@ -399,10 +400,22 @@ void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[],
       contour.pop_back();
       contour.pop_back();
       contour.pop_back();
+      std::printf("Slope is %f\n", -model[0]/model[1] );
       return;
     }
     contour.push_back(new_pt);
   }
+}
+
+int identifyContour(const std::array<double, 3>& model) {
+  //label it as either a line or an arc
+}
+
+void localizeContour(const std::vector<Point>& contour, const int& contour_type,
+                     std::array<double, 5>& location) {
+  // location = {x1, y1, x2, y2, slope} for a line
+  // location = {cx, cy, theta1, theta2, radius} for an arc
+
 }
 
 void expandSeed(const Point& seed, Mat& edgeMap, Mat gradMap[]) {
