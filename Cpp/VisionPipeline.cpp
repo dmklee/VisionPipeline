@@ -11,7 +11,7 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  Mat image = imread("../Pics/toyblocks.png", 1);
+  Mat image = imread("../Pics/occlusion2.png", 1);
   Mat image_gray;
   cvtColor( image, image_gray, CV_BGR2GRAY );
   // cv::Mat noise = Mat(image_gray.size(), CV_64F);
@@ -29,7 +29,6 @@ int main(int argc, char** argv )
   // runEdgeDrawing(image_gray);
   // runLineDrawing(image_gray);
   extractContours(BW);
-
 
   // namedWindow("Line Map", WINDOW_NORMAL );
   // resizeWindow("Line Map", 800, 600);

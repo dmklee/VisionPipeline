@@ -7,11 +7,13 @@ ALG 1 - ExtractContours
     seeds = extractSeeds(edgeMap, gradientMap)
     contour_locations <- []
     for seed in seeds:
+       shiftSeed(seed, edgeMap, gradientMap)
+       if !isStableSeed(seed, edgeMap, gradientMap):
+            continue
        contour, model, success = growSeed(seed, edgeMap, gradientMap)
         if !success:
             continue
-        contour_type = classifyContour(model)
-        location = localizeContour(contour, contour_type)
+        location, contour_type = localizeContour(contour, contour_type)
         contour_locations.append(location)
 
     return contour_locations
