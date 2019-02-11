@@ -57,7 +57,8 @@ inline int subtractGradID_abs(const int& g1, const int& g2) {
 //   return diff;
 // }
 
-void computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[]) {
+double computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[], bool time_it) {
+  clock_t t = clock();
   Mat abs_grad_x, abs_grad_y;
   int ddepth = CV_16S;
   cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
@@ -65,6 +66,12 @@ void computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[]) {
   cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.3);
   cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.3);
   cv::add(abs_grad_x, abs_grad_y, edgeMap);
+  t = clock() - t;
+  if (time_it) {
+  std::printf("\tI computed edge and gradient maps in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  }
+  return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
 }
 
 inline void moveAlongContour(cv::Point& new_pt, const int& grad_id,
@@ -180,8 +187,9 @@ inline bool isStableSeed(const Point& seed, const Mat& edgeMap,
            (subtractGradID_abs(right_grad_id, left_grad_id) < 2) );
 }
 
-void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst,
-                  int size=15, int threshold = 15) {
+double extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst,
+                  bool time_it, int size=15, int threshold = 15) {
+  clock_t t = clock();
   Mat region_frame;
   Point current_pt;
   Point offset = Point(size,size);
@@ -202,6 +210,10 @@ void extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst,
           }
       }
   }
+  t = clock() - t;
+  std::printf("\tI extracted %d seeds in %f ms\n", static_cast<int>(dst.size()),
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
 }
 
 void linearFit(const vec_iter_t& start, const vec_iter_t& end,
@@ -245,15 +257,16 @@ void circularFit(const vec_iter_t& start, const vec_iter_t& end,
   // https://dtcenter.org/met/users/docs/write_ups/circle_fit.pdf
 
   // find the mean values for x, y
-  double x_bar, y_bar;
-  int N;
+  double x_bar = 0.;
+  double y_bar = 0.;
+  int N = end - start;
   for (vec_iter_t i = start; i != end; i++) {
     x_bar += i->x;
     y_bar += i->y;
-    N++;
   }
   x_bar /= N;
   y_bar /= N;
+
 
   double u, v;
   double Suu, Suv, Svv, Suuu, Svvv, Suvv, Svuu;
@@ -270,10 +283,15 @@ void circularFit(const vec_iter_t& start, const vec_iter_t& end,
       Svuu += v*u*u;
   }
 
+  //
+  // std::printf("x_bar: %f || y_bar: %f || N: %d\n", x_bar, y_bar, N);
+  // std::printf("Suu: %f || Suv:%f || Svv:%f\n", Suu, Suv, Svv);
+  // std::printf("Suuu: %f || Svvv:%f || Suvv:%f || Svuu:%f\n", Suuu, Svvv, Suvv, Svuu);
+
   double v_c, u_c, r2;
-  v_c = 1/2*((Suuu + Suvv)/Suu - (Svvv+Svuu)/Suv) / (Suv/Suu - Svv/Suv);
-  u_c = (1/2*(Suuu+Suvv) - Suv*v_c )/Suu;
-  r2 = u_c*u_c + v_c*v_c + (Suu+Svv)/N;
+  u_c = 0.5 * (Suuu+Suvv - Suv/Svv * (Svvv +Svuu)) / (Suu - pow(Suv, 2)/Svv);
+  v_c = (0.5 *(Svvv+Svuu) - Suv * u_c )/Svv;
+  r2 = pow(u_c, 2) + pow(v_c, 2) + (Suu+Svv)/N;
   params[0] = u_c + x_bar;
   params[1] = v_c + y_bar;
   params[2] = sqrt(r2);
@@ -378,7 +396,7 @@ inline double getAngleDifference( const double theta1, const double theta2) {
 //                 subtractGradID_abs(g1, g3) < 2;
 // }
 
-void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[],
+void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
                     std::vector<cv::Point>& contour, std::array<double,3 >& model,
                     const bool direction=true, const int max_length=10)
 {
@@ -430,24 +448,25 @@ void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[],
       contour.pop_back();
       contour.pop_back();
       contour.pop_back();
-      std::printf("Slope is %f\n", -model[0]/model[1] );
       return;
     }
     contour.push_back(new_pt);
+    Seen.at<uchar>(new_pt.x, new_pt.y) = 255;
   }
 }
 
 void closestPoint_line(const std::array<double,3>& model, const Point& PoI,
                           Point2d& closest_pt) {
-  Point2d some_pt( 0.0 , PoI.y );
-  if (model[1] == 0.0) {
+  Point2d some_pt;
+  if (model[0] == 0.0) {
     //vertical line
-    some_pt.x = model[2];
+    some_pt.x = PoI.x;
+    some_pt.y = -model[2];
   } else {
     // horizontal line
+    some_pt.y = PoI.y;
     some_pt.x = - ((float) model[1]*some_pt.y + model[2]) / model[0];
   }
-
   Point n(model[0],model[1]);
   double n_magn = pow( (pow(n.x, 2.) + pow(n.y, 2.) ), 0.5 );
   Point2d vec;
@@ -467,144 +486,167 @@ void localizeContour(const std::vector<Point>& contour, int& contour_type,
   std::array<double, 3> model;
   double error = 0.0;
 
-  contour_type = 0; // assume it is a line
   for (int attempts = 0; attempts != 2; attempts++) {
     sampled_pts.clear();
     for (int i= 0; i < num_pts_sampled; i++) {
       sampled_pts.push_back( Point(contour[ rand() % contour_length]) );
     }
     linearFit(sampled_pts.begin(), sampled_pts.end(), model, error);
-    if (error > 2) {
-      contour_type = -1; // not assigned
-      break;
+    if (error < 2) {
+      linearFit(contour.begin(), contour.end(), model, error);
+      if (error < 2) {
+        Point2d closest_pt;
+        closestPoint_line(model, contour.front(), closest_pt);
+        location[0] = closest_pt.x;        // x1
+        location[1] = closest_pt.y;        // y1
+        closestPoint_line(model, contour.back(), closest_pt);
+        location[2] = closest_pt.x;        // x2
+        location[3] = closest_pt.y;        // y2
+        location[4] = -model[0]/model[1];   // slope
+        contour_type = 0;
+        return;
+      }
     }
   }
-  if (contour_type == 0) {
-    // line
-    linearFit(contour.begin(), contour.end(), model, error);
-    Point2d closest_pt;
-    closestPoint_line(model, contour.front(), closest_pt);
-    location[0] = closest_pt.x;        // x1
-    location[1] = closest_pt.y;        // y1
-    closestPoint_line(model, contour.back(), closest_pt);
-    location[2] = closest_pt.x;        // x2
-    location[3] = closest_pt.y;        // y2
-    location[4] = -model[0]/model[1];   // slope
-    return;
-  } else {
-    // attempt a circle
-    circularFit(contour.begin(), contour.end(), model, error);
-    if (error > 2) {
-      contour_type = -1;
-      return;
-    }
-    location[0] = model[0];                             // cx
-    location[1] = model[1];                             // cy
-    location[2] = atan2(contour.front().x - model[0],   // theta1
-                      contour.front().y - model[1]);
-    location[3] = atan2(contour.back().x - model[0],    // theta2
-                      contour.back().y - model[1]);
-    location[4] = model[2];                             // radius
-    contour_type = 1; // circle fit good
-    return;
-  }
+  // attempt a circle
+  circularFit(contour.begin(), contour.end(), model, error);
+  // if (error > 2) {
+  //   contour_type = -1;
+  //   return;
+  // }
+  location[0] = model[0];                             // cx
+  location[1] = model[1];
+  Point2d v1(contour.front().x - model[0],
+                  contour.front().y - model[1]);
+  Point2d v2(contour.back().x - model[0],
+                  contour.back().y - model[1]);
+  Point2d v_C(contour[contour_length/2].x - model[0],
+                  contour[contour_length/2].y - model[1]);
+  Point2d v_m(contour[5].x - contour.front().x,
+            contour[5].y - contour.front().y);
+  double curl = v1.x*v_m.y - v1.y*v_m.x;
+  double mid_angle = atan2(v_C.x, v_C.y);
+
+  double angle_diff1 = acos( (v1.x*v_C.x + v1.y*v_C.y) /
+                          (pow(pow(v1.x,2) +pow(v1.y,2), 0.5) *
+                           pow(pow(v_C.x,2) +pow(v_C.y,2), 0.5) ) );
+ double angle_diff2 = acos( (v_C.x*v2.x + v_C.y*v2.y) /
+                         (pow(pow(v_C.x,2) +pow(v_C.y,2), 0.5) *
+                          pow(pow(v2.x,2) +pow(v2.y,2), 0.5) ) );
+  location[2] = mid_angle - curl/abs(curl) * angle_diff1;   // theta1
+  location[3] = mid_angle + curl/abs(curl) * angle_diff2;    // theta2
+
+  location[4] = model[2];                             // radius
+  contour_type = 1; // circle fit good
 }
 
 void extractContours(Mat & img_gray) {
+  Mat Seen = Mat::zeros(img_gray.size(), CV_8U);
+
+  bool time_it = true;
   float t_total = 0.0;
   std::printf("--- Running Contour Detection (%d x %d pixels) ---\n\n",
               img_gray.cols, img_gray.rows );
-  clock_t t = clock();
-  suppressNoise(img_gray, img_gray);
-  t = clock()-t; t_total += ((float)t)/CLOCKS_PER_SEC*1000.0;
-  std::printf("\tI applied gaussian filter in %f ms\n",
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  t_total += suppressNoise(img_gray, img_gray, time_it);
 
-  t = clock();
   Mat edgeMap;
   Mat gradMap[] = {Mat(img_gray.rows, img_gray.cols, CV_16S),
                    Mat(img_gray.rows, img_gray.cols, CV_16S)};
-  computeEdgeAndGradMap(img_gray, edgeMap, gradMap);
-  t = clock()-t; t_total += ((float)t)/CLOCKS_PER_SEC*1000.0;
-  std::printf("\tI computed edge and gradient maps in %f ms\n",
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
-
+  t_total += computeEdgeAndGradMap(img_gray, edgeMap, gradMap, time_it);
   std::vector<cv::Point> seeds;
-  t = clock();
-  extractSeeds(edgeMap, gradMap, seeds);
-  t = clock() - t; t_total += ((float)t)/CLOCKS_PER_SEC*1000.0;
-  std::printf("\tI extracted %d seeds in %f ms\n", static_cast<int>(seeds.size()),
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  t_total += extractSeeds(edgeMap, gradMap, seeds, time_it);
 
   // visualization for debugging
   Mat color;
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
 
+  // interesting points for testing
   Point circle[] = {Point(74,244)};
   Point ellipse[] = {Point(83,331)};
   Point smaller_circle[] = {Point(213,332)};
   Point toyblocks[] = {Point(291,36), Point(231,21), Point(82,207),
-                          Point(319,155),Point(304,275),Point(314,333)};
+                          Point(319,155),Point(304,275),Point(314,333),
+                          Point(188,118)};
   Point occlusion2[] = {Point(269,468), Point(329,127), Point(128,154),
                           Point(126,364), Point(182,228), Point(39, 443),
                           Point(151,330), Point(393,121)};
-  seeds.clear();
-  // for (const auto& pt: occlusion2) {
+  // seeds.clear();
+  // for (const auto& pt: toyblocks) {
   //   seeds.push_back(pt);
   // }
-  seeds.push_back(occlusion2[5]);
+  // seeds.push_back(toyblocks[6]);
 
-  t = clock();
+  clock_t t = clock();
   std::vector<cv::Point> contour;
   std::array<double, 3> model;
-  int counter = 0;
-  for (auto& seed: seeds) {
+  int counter =  950;
+  Point seed;
+  for (int i=0; i < seeds.size(); i+=1) {
+    seed = seeds[i];
     //
-    // color.at<Vec3b>(seed.x,seed.y)[0] = 0;
-    // color.at<Vec3b>(seed.x,seed.y)[1] = 255;
-    // color.at<Vec3b>(seed.x,seed.y)[2] = 255;
+
     if (!shiftSeed(seed, edgeMap, gradMap)) {
-      std::printf("Failed to shift seed\n");
+      // std::printf("Failed to shift seed\n");
+      continue;
+    }
+    if (Seen.at<uchar>(seed.x, seed.y) != 0) {
+      // std::printf("Already explored this point\n");
       continue;
     }
     if (!isStableSeed(seed, edgeMap, gradMap, 2)) {
-      std::printf("Unstable seed\n");
+      // std::printf("Unstable seed\n");
       continue;
     }
+    color.at<Vec3b>(seed.x,seed.y)[0] = 255;
+    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
+    color.at<Vec3b>(seed.x,seed.y)[2] = 0;
 
-    int length = 500;
+    int length = 200;
     contour.clear();
     contour.push_back(seed);
-    expandBranch(seed, edgeMap, gradMap, contour, model, true, length/2);
+    expandBranch(seed, edgeMap, gradMap, Seen, contour, model, true, length/2);
     std::reverse(std::begin(contour), std::end(contour));
-    // std::ofstream myfile;
-    // myfile.open("../data.txt");
-    // myfile << contour.size()-1 << ", ";
-
-    expandBranch(seed, edgeMap, gradMap, contour, model, false, length/2);
+    expandBranch(seed, edgeMap, gradMap, Seen, contour, model, false, length/2);
     if (contour.size() < 9) {
-      std::printf("Contour too short: length %d\n", contour.size());
+      std::printf("Contour too short: length %d\n", static_cast<int>(contour.size()));
       continue;
     }
     counter++;
 
-
-
-    int i = 0;
-    int r, b;
-    if (true) {
-      r = 255; b = 0;
+    int contour_type;
+    std::array<double,5> location;
+    localizeContour(contour, contour_type, location);
+    if (contour_type == 0) {
+      std::printf("Discovered a line\n" );
+      Point pt1(round(location[1]),round(location[0]));
+      Point pt2(round(location[3]),round(location[2]));
+      std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
+      cv::line(color, pt1, pt2, Scalar(0,255,0),1);
     } else {
-      r = 0; b = 255;
+      std::printf("Discovered an arc\n" );
+      Point center(location[1],location[0]);
+      int radius = static_cast<int>(round(location[4]));
+      std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
+      double startAngle = 180*location[2]/PI;
+      double endAngle = 180*location[3]/PI;
+      std::printf("start: %f || end: %f \n",startAngle, endAngle );
+      // cv::circle(color, center, radius, Scalar(0,255,0));
+      cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
+                  startAngle, endAngle, Scalar(0,255,0), 1);
     }
-    for (auto& pt: contour) {
-      color.at<Vec3b>(pt.x,pt.y)[0] = b;
-      color.at<Vec3b>(pt.x,pt.y)[1] = 0;
-      color.at<Vec3b>(pt.x,pt.y)[2] = r;
-      // myfile << getContourAngle(gradMap, pt);
-      // if (i != contour.size()-1) myfile << ", ";
-      i++;
-    }
+
+
+    // std::ofstream myfile;
+    // myfile.open("../data.txt");
+    // int i=0;
+    // for (auto& pt: contour) {
+    //   color.at<Vec3b>(pt.x,pt.y)[0] = 0;
+    //   color.at<Vec3b>(pt.x,pt.y)[1] = 0;
+    //   color.at<Vec3b>(pt.x,pt.y)[2] = 255;
+    //   myfile << pt.x << " " << pt.y;
+    //   if (i != contour.size()-1) myfile << "\n";
+    //   i++;
+    // }
     // myfile.close();
     // color.at<Vec3b>(seed.x,seed.y)[0] = 255;
     // color.at<Vec3b>(seed.x,seed.y)[1] = 0;
@@ -630,12 +672,12 @@ void extractContours(Mat & img_gray) {
   //     m_grad_id.at<uchar>(j,i) = 40*getGradID(gradMap, cv::Point(j,i));
   //   }
   // }
-  imwrite( "../Results/Contours.png", color );
-  // namedWindow("Seed Map", WINDOW_NORMAL );
-  // moveWindow("Seed Map", 0,30);
-  // resizeWindow("Seed Map", 120, 95);
-  // imshow("Seed Map", color );
-  // waitKey(0);
+  // imwrite( "../Results/Contours.png", color );
+  namedWindow("Seed Map", WINDOW_NORMAL );
+  moveWindow("Seed Map", 0,30);
+  resizeWindow("Seed Map", 800,600);
+  imshow("Seed Map", color );
+  waitKey(0);
 }
 
 

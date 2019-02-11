@@ -14,10 +14,17 @@ typedef std::vector< pt_type > seg_type;
 typedef std::vector< seg_type > segList_type;
 
 
-void suppressNoise(const Mat& img, Mat& dst) {
+double suppressNoise(const Mat& img, Mat& dst, bool time_it=true) {
+  clock_t t = clock();
   cv::Size ksize(5,5);
   double sigma = 1.0;
   cv::GaussianBlur(img,dst,ksize,sigma);
+  t = clock() - t;
+  if (time_it) {
+  std::printf("\tI applied gaussian filter in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  }
+  return static_cast<double>(t)/CLOCKS_PER_SEC*1000.0;
 }
 
 void computeGradAndDirectionMap(const Mat& img_gray, Mat& grad, Mat& dirMap) {

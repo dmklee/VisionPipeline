@@ -2,6 +2,8 @@ import numpy as np
 import numpy.random as npr 
 import matplotlib.pyplot as plt 
 from matplotlib import animation
+from matplotlib.patches import Circle
+from matplotlib.collections import PatchCollection
 plt.style.use('classic')
 
 
@@ -90,8 +92,8 @@ def inc_follow_contour(X_, Y_, plot_objects):
 
 	return helper
 
-# X_ = np.sort(100.*npr.uniform(size=LENGTH))
-# Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
+X_ = np.sort(100.*npr.uniform(size=LENGTH))
+Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
 
 Y_ = (np.loadtxt('data.txt', delimiter = ',')[1:])[::-1]
 delta = Y_[1:] - Y_[:-1]
