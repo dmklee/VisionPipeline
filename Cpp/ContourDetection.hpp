@@ -570,11 +570,11 @@ void extractContours(Mat & img_gray) {
   Point occlusion2[] = {Point(269,468), Point(329,127), Point(128,154),
                           Point(126,364), Point(182,228), Point(39, 443),
                           Point(151,330), Point(393,121)};
-  // seeds.clear();
+  seeds.clear();
   // for (const auto& pt: toyblocks) {
   //   seeds.push_back(pt);
   // }
-  // seeds.push_back(toyblocks[6]);
+  seeds.push_back(Point(245,518));
 
   clock_t t = clock();
   std::vector<cv::Point> contour;
@@ -597,9 +597,6 @@ void extractContours(Mat & img_gray) {
       // std::printf("Unstable seed\n");
       continue;
     }
-    color.at<Vec3b>(seed.x,seed.y)[0] = 255;
-    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    color.at<Vec3b>(seed.x,seed.y)[2] = 0;
 
     int length = 200;
     contour.clear();
@@ -621,7 +618,7 @@ void extractContours(Mat & img_gray) {
       Point pt1(round(location[1]),round(location[0]));
       Point pt2(round(location[3]),round(location[2]));
       std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
-      cv::line(color, pt1, pt2, Scalar(0,255,0),1);
+      cv::line(color, pt1, pt2, Scalar(0,0,255),1);
     } else {
       std::printf("Discovered an arc\n" );
       Point center(location[1],location[0]);
@@ -632,31 +629,32 @@ void extractContours(Mat & img_gray) {
       std::printf("start: %f || end: %f \n",startAngle, endAngle );
       // cv::circle(color, center, radius, Scalar(0,255,0));
       cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
-                  startAngle, endAngle, Scalar(0,255,0), 1);
+                  startAngle, endAngle, Scalar(0,0,255), 1);
     }
 
 
     // std::ofstream myfile;
     // myfile.open("../data.txt");
     // int i=0;
-    // for (auto& pt: contour) {
-    //   color.at<Vec3b>(pt.x,pt.y)[0] = 0;
-    //   color.at<Vec3b>(pt.x,pt.y)[1] = 0;
-    //   color.at<Vec3b>(pt.x,pt.y)[2] = 255;
-    //   myfile << pt.x << " " << pt.y;
-    //   if (i != contour.size()-1) myfile << "\n";
-    //   i++;
-    // }
+    for (auto& pt: contour) {
+      color.at<Vec3b>(pt.x,pt.y)[0] = 50;
+      color.at<Vec3b>(pt.x,pt.y)[1] = 200;
+      color.at<Vec3b>(pt.x,pt.y)[2] = 255;
+      // myfile << pt.x << " " << pt.y;
+      // if (i != contour.size()-1) myfile << "\n";
+      i++;
+    }
     // myfile.close();
-    // color.at<Vec3b>(seed.x,seed.y)[0] = 255;
-    // color.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    // color.at<Vec3b>(seed.x,seed.y)[2] = 0;
+    color.at<Vec3b>(seed.x,seed.y)[0] = 255;
+    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
+    color.at<Vec3b>(seed.x,seed.y)[2] = 0;
     // color.at<Vec3b>(contour.front().x,contour.front().y)[0] = 0;
     // color.at<Vec3b>(contour.front().x,contour.front().y)[1] = 255;
     // color.at<Vec3b>(contour.front().x,contour.front().y)[2] = 0;
     // color.at<Vec3b>(contour.back().x,contour.back().y)[0] = 0;
     // color.at<Vec3b>(contour.back().x,contour.back().y)[1] = 255;
     // color.at<Vec3b>(contour.back().x,contour.back().y)[2] = 0;
+
   }
 
   t = clock() - t;
