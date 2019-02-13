@@ -216,6 +216,11 @@ double extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst,
   return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
 }
 
+// void RANSAC_linear(const vec_iter_t& start, const vec_iter_t& end,
+//                     std::array<double, 5>& location) {
+//   return;
+// }
+
 void linearFit(const vec_iter_t& start, const vec_iter_t& end,
                 std::array<double, 3>& params, double& error)
 {
@@ -602,49 +607,52 @@ void extractContours(Mat & img_gray) {
     contour.clear();
     contour.push_back(seed);
     expandBranch(seed, edgeMap, gradMap, Seen, contour, model, true, length/2);
+    std::printf("%d\n",contour.size());
     std::reverse(std::begin(contour), std::end(contour));
     expandBranch(seed, edgeMap, gradMap, Seen, contour, model, false, length/2);
+    std::printf("%d\n",contour.size());
     if (contour.size() < 9) {
       std::printf("Contour too short: length %d\n", static_cast<int>(contour.size()));
       continue;
     }
     counter++;
 
-    int contour_type;
-    std::array<double,5> location;
-    localizeContour(contour, contour_type, location);
-    if (contour_type == 0) {
-      std::printf("Discovered a line\n" );
-      Point pt1(round(location[1]),round(location[0]));
-      Point pt2(round(location[3]),round(location[2]));
-      std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
-      cv::line(color, pt1, pt2, Scalar(0,0,255),1);
-    } else {
-      std::printf("Discovered an arc\n" );
-      Point center(location[1],location[0]);
-      int radius = static_cast<int>(round(location[4]));
-      std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
-      double startAngle = 180*location[2]/PI;
-      double endAngle = 180*location[3]/PI;
-      std::printf("start: %f || end: %f \n",startAngle, endAngle );
-      // cv::circle(color, center, radius, Scalar(0,255,0));
-      cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
-                  startAngle, endAngle, Scalar(0,0,255), 1);
-    }
+    // int contour_type;
+    // std::array<double,5> location;
+    // localizeContour(contour, contour_type, location);
+    // if (contour_type == 0) {
+    //   std::printf("Discovered a line\n" );
+    //   Point pt1(round(location[1]),round(location[0]));
+    //   Point pt2(round(location[3]),round(location[2]));
+    //   std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
+    //   cv::line(color, pt1, pt2, Scalar(0,0,255),1);
+    // } else {
+    //   std::printf("Discovered an arc\n" );
+    //   Point center(location[1],location[0]);
+    //   int radius = static_cast<int>(round(location[4]));
+    //   std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
+    //   double startAngle = 180*location[2]/PI;
+    //   double endAngle = 180*location[3]/PI;
+    //   std::printf("start: %f || end: %f \n",startAngle, endAngle );
+    //   // cv::circle(color, center, radius, Scalar(0,255,0));
+    //   cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
+    //               startAngle, endAngle, Scalar(0,0,255), 1);
+    // }
 
 
-    // std::ofstream myfile;
-    // myfile.open("../data.txt");
-    // int i=0;
+    std::ofstream myfile;
+    myfile.open("../data.txt");
+    int j=0;
     for (auto& pt: contour) {
       color.at<Vec3b>(pt.x,pt.y)[0] = 50;
       color.at<Vec3b>(pt.x,pt.y)[1] = 200;
       color.at<Vec3b>(pt.x,pt.y)[2] = 255;
       // myfile << pt.x << " " << pt.y;
-      // if (i != contour.size()-1) myfile << "\n";
-      i++;
+      myfile << getContourAngle(gradMap, pt);
+      if (j != contour.size()-1) myfile << "\n";
+      j++;
     }
-    // myfile.close();
+    myfile.close();
     color.at<Vec3b>(seed.x,seed.y)[0] = 255;
     color.at<Vec3b>(seed.x,seed.y)[1] = 0;
     color.at<Vec3b>(seed.x,seed.y)[2] = 0;
@@ -670,12 +678,12 @@ void extractContours(Mat & img_gray) {
   //     m_grad_id.at<uchar>(j,i) = 40*getGradID(gradMap, cv::Point(j,i));
   //   }
   // }
-  // imwrite( "../Results/Contours.png", color );
-  namedWindow("Seed Map", WINDOW_NORMAL );
-  moveWindow("Seed Map", 0,30);
-  resizeWindow("Seed Map", 800,600);
-  imshow("Seed Map", color );
-  waitKey(0);
+  imwrite( "../Results/Contours.png", color );
+  // namedWindow("Seed Map", WINDOW_NORMAL );
+  // moveWindow("Seed Map", 0,30);
+  // resizeWindow("Seed Map", 800,600);
+  // imshow("Seed Map", color );
+  // waitKey(0);
 }
 
 

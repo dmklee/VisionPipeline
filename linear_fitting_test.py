@@ -92,14 +92,14 @@ def inc_follow_contour(X_, Y_, plot_objects):
 
 	return helper
 
-X_ = np.sort(100.*npr.uniform(size=LENGTH))
-Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
+# X_ = np.sort(100.*npr.uniform(size=LENGTH))
+# Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
 
-Y_ = (np.loadtxt('data.txt', delimiter = ',')[1:])[::-1]
-delta = Y_[1:] - Y_[:-1]
-if (np.abs(delta) > 1).any():
-	i = np.argmax(np.abs(delta))
-	Y_[i+1:] -= delta[i]
+Y_ = (np.loadtxt('data.txt', delimiter = ',')[1:])#[::-1]
+# delta = Y_[1:] - Y_[:-1]
+# if (np.abs(delta) > 1).any():
+# 	i = np.argmax(np.abs(delta))
+# 	Y_[i+1:] -= delta[i]
 X_ = np.arange(Y_.size)
 
 
