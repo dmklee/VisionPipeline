@@ -335,6 +335,27 @@ double linearFitError( const Point2d& pt, const std::array<double, 3>& model) {
   return pow(model[0] * pt.x + model[1] * pt.y + model[2], 2.0);
 }
 
+void incSlopeFit(const double& x_n, std::array<double, 5>& record) {
+  // record is {mu_n, mu_(n-1), S_n, S_(n-1), n}
+  // S = sigma^2 * n
+  record[4] += 1.;
+  record[0] = record[1] + (x_n - record[1])/record[4];
+  if (record[4] == 1) {
+    record[1] = record[0];
+  }
+  record[2] = record[3] + (x_n - record[1])*(x_n - record[0]);
+
+  // update old values
+  record[1] = record[0];
+  record[3] = record[2];
+}
+
+inline bool checkSlopeFit(const double& x_n, const std::array<double, 5>& record,
+                          const double& threshold) {
+  double std_dev = pow(record[2]/record[4], 0.5);
+  return abs(x_n - record[0])/std_dev < threshold ;
+}
+
 inline double getContourAngle( Mat gradMap[], const Point& pt) {
   const short grad_x = gradMap[0].at<short>(pt.x, pt.y);
   const short grad_y = gradMap[1].at<short>(pt.x, pt.y);
@@ -412,7 +433,7 @@ void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
   double tol = 0.05;
   double tol_min = 0.002;
   int alarm = 0;
-  std::array<double, 5> record = {{0., 0., 0., 0.}};
+  std::array<double, 5> record = {{0., 0., 0., 0., 0.}};
 
   cv::Point new_pt = Point(seed);
   cv::Point2d curv_data = Point2d(0., getContourAngle(gradMap, new_pt));
@@ -460,6 +481,138 @@ void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
   }
 }
 
+void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
+                    std::vector<cv::Point>& contour, std::array<double,3 >& model,
+                    const int max_length=10, bool store_data=false)
+{
+  std::vector<cv::Point> contour_left, contour_right;
+  double angle_new_left, angle_old_left, d_angle_left;
+  double angle_new_right, angle_old_right, d_angle_right;
+  d_angle_left = d_angle_right = 0.;
+  angle_old_left = angle_old_right = getContourAngle(gradMap, seed);
+  cv::Point2d curv_data_left = Point2d(0., 0.);
+  cv::Point2d curv_data_right = Point2d(0., 0.);
+
+  int edgeVal, grad_id;
+  double tol = 0.1;
+  double tol_min = 0.02;
+  double fit_error = 0.0;
+  int alarm_left = 0;
+  int alarm_right = 0;
+  std::array<double, 5> record = {{0., 0., 0., 0., 0.}};
+
+  // left is -1, right is +1
+  bool left_alive = true;
+  bool right_alive = true;
+  cv::Point pt_left(seed);
+  cv::Point pt_right(seed);
+  std::ofstream myfile;
+  if (store_data) {
+    myfile.open("../data.txt");
+  }
+
+
+  incLinearFit(curv_data_left, record, model);
+  if (store_data) {
+    myfile << curv_data_left.x << "," << curv_data_left.y << "\n";
+  }
+  for (int i = 0; i < max_length/2; i++) {
+    tol *= 0.85;
+    // std::printf("Left alive: %d, right_alive: %d\n", left_alive, right_alive);
+    if ( !left_alive || !right_alive || (tol < tol_min)) tol = tol_min;
+
+    if (left_alive) {
+      grad_id = getGradID(gradMap, pt_left);
+      moveAlongContour(pt_left, grad_id, edgeMap);
+      edgeVal = edgeMap.at<uchar>(pt_left.x, pt_left.y);
+      angle_new_left = getContourAngle(gradMap, pt_left);
+      d_angle_left = getAngleDifference(angle_old_left, angle_new_left);
+      angle_old_left = angle_new_left;
+
+      curv_data_left.x += 1.;
+      curv_data_left.y += d_angle_left;
+      if (store_data) {
+        myfile << curv_data_left.x << "," << curv_data_left.y << "\n";
+      }
+
+      if (i > 2) {
+        fit_error = linearFitError(curv_data_left, model);
+      } else {
+        fit_error = 0.;
+      }
+      if (fit_error < tol) {
+        incLinearFit(curv_data_left, record, model);
+      } else {
+        alarm_left += 3;
+      }
+      if (alarm_left > 0) alarm_left -= 1;
+
+      // TERMINATION CONDITIONS
+      // std::printf("L: edgeval: %d; alarm: %d\n", edgeVal, alarm_left );
+      if ( (edgeVal < 15) || (alarm_left > 5) ) {
+        contour_left.erase(contour_left.end()
+                            - std::min(3, static_cast<int>(contour_left.size())),
+                          contour_left.end());
+        left_alive = false;
+      } else {
+        contour_left.push_back(pt_left);
+        Seen.at<uchar>(pt_left.x, pt_left.y) = 255;
+      }
+    }
+    if (right_alive) {
+      // shift grad_id to move in opposite direction
+      grad_id = (4 + getGradID(gradMap, pt_right)) % 8;
+      moveAlongContour(pt_right, grad_id, edgeMap);
+      edgeVal = edgeMap.at<uchar>(pt_right.x, pt_right.y);
+      angle_new_right = getContourAngle(gradMap, pt_right);
+      d_angle_right = getAngleDifference(angle_old_right, angle_new_right);
+      angle_old_right = angle_new_right;
+
+      curv_data_right.x -= 1.;
+      curv_data_right.y += d_angle_right;
+      if (store_data) {
+        myfile << curv_data_right.x << "," << curv_data_right.y << "\n";
+      }
+      if (i > 2) {
+        fit_error = linearFitError(curv_data_right, model);
+      } else {
+        fit_error = 0.;
+      }
+      if (fit_error < tol) {
+        incLinearFit(curv_data_right, record, model);
+      } else {
+        alarm_right += 3;
+      }
+      if (alarm_right > 0) alarm_right -= 1;
+
+      // TERMINATION CONDITIONS
+      // std::printf("R: edgeval: %d; alarm: %d\n", edgeVal, alarm_right );
+      if ( (edgeVal < 15) || (alarm_right > 5) ) {
+        contour_right.erase(contour_right.end()
+                              - std::min(3, static_cast<int>(contour_right.size())),
+                          contour_right.end());
+        right_alive = false;
+      } else {
+        contour_right.push_back(pt_right);
+        Seen.at<uchar>(pt_right.x, pt_right.y) = 255;
+      }
+    }
+    if ( !(left_alive or right_alive)) {
+      break;
+    }
+  } // end for
+
+  // now we can assemble contour from left and right segments
+  // std::printf("left size: %d || right size: %d\n",
+  //             static_cast<int>(contour_left.size()),
+  //             static_cast<int>(contour_right.size()));
+  contour.reserve(contour_left.size()+contour_right.size()+1);
+  copy(contour_left.rbegin(),contour_left.rend(),back_inserter(contour));
+  contour.push_back(seed);
+  copy(contour_right.begin(),contour_right.end(),back_inserter(contour));
+  if (store_data)  myfile.close();
+} // end function
+
 void closestPoint_line(const std::array<double,3>& model, const Point& PoI,
                           Point2d& closest_pt) {
   Point2d some_pt;
@@ -499,7 +652,7 @@ void localizeContour(const std::vector<Point>& contour, int& contour_type,
     linearFit(sampled_pts.begin(), sampled_pts.end(), model, error);
     if (error < 2) {
       linearFit(contour.begin(), contour.end(), model, error);
-      if (error < 2) {
+      if (error < 1) {
         Point2d closest_pt;
         closestPoint_line(model, contour.front(), closest_pt);
         location[0] = closest_pt.x;        // x1
@@ -566,7 +719,7 @@ void extractContours(Mat & img_gray) {
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
 
   // interesting points for testing
-  Point circle[] = {Point(74,244)};
+  Point circle[] = {Point(104,197)};
   Point ellipse[] = {Point(83,331)};
   Point smaller_circle[] = {Point(213,332)};
   Point toyblocks[] = {Point(291,36), Point(231,21), Point(82,207),
@@ -575,11 +728,12 @@ void extractContours(Mat & img_gray) {
   Point occlusion2[] = {Point(269,468), Point(329,127), Point(128,154),
                           Point(126,364), Point(182,228), Point(39, 443),
                           Point(151,330), Point(393,121)};
-  seeds.clear();
-  // for (const auto& pt: toyblocks) {
+  Point line_edges[] = {Point(262,133), Point(246,300), Point(298, 482)};
+  // seeds.clear();
+  // for (const auto& pt: occlusion2) {
   //   seeds.push_back(pt);
   // }
-  seeds.push_back(Point(245,518));
+  // seeds.push_back(Point(204,174));
 
   clock_t t = clock();
   std::vector<cv::Point> contour;
@@ -603,16 +757,12 @@ void extractContours(Mat & img_gray) {
       continue;
     }
 
-    int length = 200;
+    int length = 600;
     contour.clear();
-    contour.push_back(seed);
-    expandBranch(seed, edgeMap, gradMap, Seen, contour, model, true, length/2);
-    std::printf("%d\n",contour.size());
-    std::reverse(std::begin(contour), std::end(contour));
-    expandBranch(seed, edgeMap, gradMap, Seen, contour, model, false, length/2);
-    std::printf("%d\n",contour.size());
-    if (contour.size() < 9) {
-      std::printf("Contour too short: length %d\n", static_cast<int>(contour.size()));
+    expandBranch2(seed, edgeMap, gradMap, Seen, contour, model, length);
+
+    if (contour.size() < 7) {
+      // std::printf("Contour too short: length %d\n", static_cast<int>(contour.size()));
       continue;
     }
     counter++;
@@ -621,48 +771,42 @@ void extractContours(Mat & img_gray) {
     // std::array<double,5> location;
     // localizeContour(contour, contour_type, location);
     // if (contour_type == 0) {
-    //   std::printf("Discovered a line\n" );
+    //   // std::printf("Discovered a line\n" );
     //   Point pt1(round(location[1]),round(location[0]));
     //   Point pt2(round(location[3]),round(location[2]));
-    //   std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
-    //   cv::line(color, pt1, pt2, Scalar(0,0,255),1);
+    //   // std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
+    //   // cv::line(color, pt1, pt2, Scalar(0,180,255),1);
     // } else {
-    //   std::printf("Discovered an arc\n" );
+    //   // std::printf("Discovered an arc\n" );
     //   Point center(location[1],location[0]);
     //   int radius = static_cast<int>(round(location[4]));
-    //   std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
+    //   // std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
     //   double startAngle = 180*location[2]/PI;
     //   double endAngle = 180*location[3]/PI;
-    //   std::printf("start: %f || end: %f \n",startAngle, endAngle );
+    //   // std::printf("start: %f || end: %f \n",startAngle, endAngle );
     //   // cv::circle(color, center, radius, Scalar(0,255,0));
-    //   cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
-    //               startAngle, endAngle, Scalar(0,0,255), 1);
+    //   // cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
+    //   //             startAngle, endAngle, Scalar(180,0,255), 1);
     // }
 
+    // color all points in a contour
+    // int j=0;
+    // for (auto& pt: contour) {
+    //   color.at<Vec3b>(pt.x,pt.y)[0] = 50;
+    //   color.at<Vec3b>(pt.x,pt.y)[1] = 60;
+    //   color.at<Vec3b>(pt.x,pt.y)[2] = 255;
+    //   j++;
+    // }
 
-    std::ofstream myfile;
-    myfile.open("../data.txt");
-    int j=0;
-    for (auto& pt: contour) {
-      color.at<Vec3b>(pt.x,pt.y)[0] = 50;
-      color.at<Vec3b>(pt.x,pt.y)[1] = 200;
-      color.at<Vec3b>(pt.x,pt.y)[2] = 255;
-      // myfile << pt.x << " " << pt.y;
-      myfile << getContourAngle(gradMap, pt);
-      if (j != contour.size()-1) myfile << "\n";
-      j++;
-    }
-    myfile.close();
-    color.at<Vec3b>(seed.x,seed.y)[0] = 255;
-    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    color.at<Vec3b>(seed.x,seed.y)[2] = 0;
+    // color.at<Vec3b>(seed.x,seed.y)[0] = 255;
+    // color.at<Vec3b>(seed.x,seed.y)[1] = 0;
+    // color.at<Vec3b>(seed.x,seed.y)[2] = 0;
     // color.at<Vec3b>(contour.front().x,contour.front().y)[0] = 0;
     // color.at<Vec3b>(contour.front().x,contour.front().y)[1] = 255;
     // color.at<Vec3b>(contour.front().x,contour.front().y)[2] = 0;
     // color.at<Vec3b>(contour.back().x,contour.back().y)[0] = 0;
     // color.at<Vec3b>(contour.back().x,contour.back().y)[1] = 255;
     // color.at<Vec3b>(contour.back().x,contour.back().y)[2] = 0;
-
   }
 
   t = clock() - t;
@@ -678,12 +822,12 @@ void extractContours(Mat & img_gray) {
   //     m_grad_id.at<uchar>(j,i) = 40*getGradID(gradMap, cv::Point(j,i));
   //   }
   // }
-  imwrite( "../Results/Contours.png", color );
-  // namedWindow("Seed Map", WINDOW_NORMAL );
-  // moveWindow("Seed Map", 0,30);
-  // resizeWindow("Seed Map", 800,600);
-  // imshow("Seed Map", color );
-  // waitKey(0);
+  // imwrite( "../Results/Contours.png", color );
+  namedWindow("Seed Map", WINDOW_NORMAL );
+  moveWindow("Seed Map", 0,30);
+  resizeWindow("Seed Map", 800,600);
+  imshow("Seed Map", color );
+  waitKey(0);
 }
 
 

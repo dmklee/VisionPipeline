@@ -64,7 +64,7 @@ def inc_follow_contour(X_, Y_, plot_objects):
 		y = Y_[i]
 		error = 0.
 		tol = max((0.05 * 0.85**i), 0.002)
-		if i > 1:
+		if i > 10:
 			error = linear_fit_error(x, y, model) 
 		if error < tol:
 			accepts_x, accepts_y = accepts.get_data()
@@ -76,14 +76,14 @@ def inc_follow_contour(X_, Y_, plot_objects):
 			np.append(rejects_y,[y])
 			rejects.set_data(list(rejects_x) + [x] , list(rejects_y)+[y])
 		if i > 2:
-			linear_model.set_xdata([X_[0], X_[i]])
-			linear_model.set_ydata([calc_y(X_[0], model), 
+			linear_model.set_xdata([X_[i+1], X_[i]])
+			linear_model.set_ydata([calc_y(X_[i+1], model), 
 									calc_y(X_[i], model)])
-			upper_lim.set_xdata([X_[0], X_[i]])
-			upper_lim.set_ydata([calc_y(X_[0], model)+tol**0.5, 
+			upper_lim.set_xdata([X_[i+1], X_[i]])
+			upper_lim.set_ydata([calc_y(X_[i+1], model)+tol**0.5, 
 									calc_y(X_[i], model)+tol**0.5])
-			lower_lim.set_xdata([X_[0], X_[i]])
-			lower_lim.set_ydata([calc_y(X_[0], model)-tol**0.5, 
+			lower_lim.set_xdata([X_[i+1], X_[i]])
+			lower_lim.set_ydata([calc_y(X_[i+1], model)-tol**0.5, 
 									calc_y(X_[i], model)-tol**0.5])
 			r_est = abs(model['B']/model['A'])
 			curv_text.set_text('Est. Radius: {} pixels'.format(np.round(r_est,1)))
@@ -95,19 +95,22 @@ def inc_follow_contour(X_, Y_, plot_objects):
 # X_ = np.sort(100.*npr.uniform(size=LENGTH))
 # Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
 
-Y_ = (np.loadtxt('data.txt', delimiter = ',')[1:])#[::-1]
+DATA = np.loadtxt('data.txt', delimiter = ',')
+X_ = DATA[:,0]
+Y_ = DATA[:,1]
+
 # delta = Y_[1:] - Y_[:-1]
 # if (np.abs(delta) > 1).any():
 # 	i = np.argmax(np.abs(delta))
 # 	Y_[i+1:] -= delta[i]
-X_ = np.arange(Y_.size)
-
+data_sorted = DATA[DATA[:, 0].argsort()]
 
 
 fig = plt.figure(figsize=(18,10))
-plt.plot(X_,Y_, '.-')
-plt.xlim((X_[0] - X_.size//8, X_[-1] + X_.size//8))
-plt.ylim((0.8*np.amin(Y_), 1.2*np.amax(Y_)))
+plt.plot(data_sorted[:,0], data_sorted[:,1], '.-')
+plt.xlim((np.amin(X_) - X_.size//8, np.amax(X_) + X_.size//8))
+
+plt.ylim((np.amin(Y_) - 0.2, np.amax(Y_)+0.2))
 
 # plt.show()
 
@@ -121,6 +124,6 @@ curv_text = plt.text(X_[-X_.size//6], 1.1*np.amax(Y_), '')
 plot_objects = (rejects, accepts, linear_model, upper_lim, lower_lim, curv_text)
 
 
-anim = animation.FuncAnimation(fig, inc_follow_contour(X_, Y_, plot_objects), frames=X_.size, 
-									interval=30, blit=True, repeat=False)
+anim = animation.FuncAnimation(fig, inc_follow_contour(X_, Y_, plot_objects), frames=X_.size-1, 
+									interval=100, blit=True, repeat=False)
 plt.show()
