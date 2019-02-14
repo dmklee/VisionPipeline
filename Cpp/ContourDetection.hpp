@@ -19,7 +19,6 @@ using namespace cv;
 
 typedef std::vector<cv::Point>::const_iterator vec_iter_t;
 
-
 inline int getGradID(const short grad_x, const short grad_y) {
   float ratio = grad_x != 0 ? ((float)grad_y)/grad_x : ((float)grad_y)/0.0001;
   if (abs(ratio) < 0.5) {
@@ -63,8 +62,8 @@ double computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[], bool 
   int ddepth = CV_16S;
   cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
   cv::Sobel( image_gray, gradMap[1], ddepth, 0, 1, 3 );
-  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.3);
-  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.3);
+  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.4);
+  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.4);
   cv::add(abs_grad_x, abs_grad_y, edgeMap);
   t = clock() - t;
   if (time_it) {
@@ -166,9 +165,7 @@ inline bool shiftSeed(Point& seed, const Mat& edgeMap, const Mat gradMap[]) {
 }
 
 inline bool isStableSeed(const Point& seed, const Mat& edgeMap,
-          const Mat gradMap[], const int range=2 ) {
-  // we just want to see that the
-
+          const Mat gradMap[], const int range=3 ) {
   Point pt = Point(seed);
   int center_grad_id = getGradID(gradMap, seed);
   int left_grad_id, right_grad_id;
@@ -177,11 +174,16 @@ inline bool isStableSeed(const Point& seed, const Mat& edgeMap,
     left_grad_id = getGradID(gradMap, pt);
     moveAlongContour(pt, left_grad_id, edgeMap);
   }
+
+
   pt = Point(seed);
   for (int i=0; i < range; i++) {
     right_grad_id = getGradID(gradMap, pt);
     moveAlongContour(pt, right_grad_id, edgeMap);
+
   }
+
+
   return ( (subtractGradID_abs(center_grad_id, left_grad_id) < 2) &&
            (subtractGradID_abs(center_grad_id, right_grad_id) < 2) &&
            (subtractGradID_abs(right_grad_id, left_grad_id) < 2) );
@@ -216,11 +218,6 @@ double extractSeeds(Mat& edgeMap, Mat gradMap[], std::vector<Point>& dst,
   return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
 }
 
-// void RANSAC_linear(const vec_iter_t& start, const vec_iter_t& end,
-//                     std::array<double, 5>& location) {
-//   return;
-// }
-
 void linearFit(const vec_iter_t& start, const vec_iter_t& end,
                 std::array<double, 3>& params, double& error)
 {
@@ -229,14 +226,14 @@ void linearFit(const vec_iter_t& start, const vec_iter_t& end,
   for (vec_iter_t i = start; i != end; i++) {
     sumX += i->x;
     sumY += i->y;
-    sumXY += i->x*i->y;
-    sumX2 += i->x*i->x;
+    sumXY += (i->x)*(i->y);
+    sumX2 += (i->x)*(i->x);
   }
   size_t lineLength = end - start;
   double xMean = sumX / lineLength;
   double yMean = sumY / lineLength;
   double denom = sumX2 - sumX * xMean;
-  if (std::fabs(denom) < 1e-7) {
+  if (std::fabs(denom) < 1e-6) {
     //vertical line
     params[0] = 1.0;
     params[1] = 0.0;
@@ -255,6 +252,33 @@ void linearFit(const vec_iter_t& start, const vec_iter_t& end,
     error += pow(params[0]*(i->x) + params[1]*(i->y) + params[2], 2.0);
   }
   error = sqrt(error/lineLength);
+}
+
+void incLinearFit(const Point2d& pt, std::array<double, 5>& record,
+                      std::array<double, 3>& model) {
+  record[0] += pt.x;        // sumX
+  record[1] += pt.y;        // sumY
+  record[2] += pt.x * pt.y; // sumXY
+  record[3] += pt.x * pt.x; // sumX2
+  record[4] += 1;           // length
+
+  double xMean = record[0] / record[4];
+  double yMean = record[1] / record[4];
+  double denom = record[3] - record[0] * xMean;
+
+  if (abs(denom) < 1e-6) {
+    model[0] = 1.0;
+    model[1] = 0.0;
+    model[2] = -xMean;
+  } else {
+    model[0] = - (record[2] - record[0] * yMean) / denom;
+    model[1] = 1.0;
+    model[2] = - (yMean + model[0] * xMean);
+  }
+}
+
+double linearFitError( const Point2d& pt, const std::array<double, 3>& model) {
+  return pow(model[0] * pt.x + model[1] * pt.y + model[2], 2.0);
 }
 
 void circularFit(const vec_iter_t& start, const vec_iter_t& end,
@@ -308,34 +332,8 @@ void circularFit(const vec_iter_t& start, const vec_iter_t& end,
   error = sqrt(error/N);
 }
 
-void incLinearFit(const Point2d& pt, std::array<double, 5>& record,
-                      std::array<double, 3>& model) {
-  record[0] += pt.x;        // sumX
-  record[1] += pt.y;        // sumY
-  record[2] += pt.x * pt.y; // sumXY
-  record[3] += pt.x * pt.x; // sumX2
-  record[4] += 1;           // length
-
-  double xMean = record[0] / record[4];
-  double yMean = record[1] / record[4];
-  double denom = record[3] - record[0] * xMean;
-
-  if (abs(denom) < 1e-6) {
-    model[0] = 1.0;
-    model[1] = 0.0;
-    model[2] = -xMean;
-  } else {
-    model[0] = - (record[2] - record[0] * yMean) / denom;
-    model[1] = 1.0;
-    model[2] = - (yMean + model[0] * xMean);
-  }
-}
-
-double linearFitError( const Point2d& pt, const std::array<double, 3>& model) {
-  return pow(model[0] * pt.x + model[1] * pt.y + model[2], 2.0);
-}
-
 void incSlopeFit(const double& x_n, std::array<double, 5>& record) {
+  // http://datagenetics.com/blog/november22017/index.html
   // record is {mu_n, mu_(n-1), S_n, S_(n-1), n}
   // S = sigma^2 * n
   record[4] += 1.;
@@ -535,7 +533,7 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
         myfile << curv_data_left.x << "," << curv_data_left.y << "\n";
       }
 
-      if (i > 2) {
+      if (i > 3) {
         fit_error = linearFitError(curv_data_left, model);
       } else {
         fit_error = 0.;
@@ -548,7 +546,7 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
       if (alarm_left > 0) alarm_left -= 1;
 
       // TERMINATION CONDITIONS
-      // std::printf("L: edgeval: %d; alarm: %d\n", edgeVal, alarm_left );
+      // std::printf("L: edgeval: %d; alarm: %d\n", edgeVal, alarm_left);
       if ( (edgeVal < 15) || (alarm_left > 5) ) {
         contour_left.erase(contour_left.end()
                             - std::min(3, static_cast<int>(contour_left.size())),
@@ -573,7 +571,7 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
       if (store_data) {
         myfile << curv_data_right.x << "," << curv_data_right.y << "\n";
       }
-      if (i > 2) {
+      if (i > 3) {
         fit_error = linearFitError(curv_data_right, model);
       } else {
         fit_error = 0.;
@@ -616,21 +614,35 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
 void closestPoint_line(const std::array<double,3>& model, const Point& PoI,
                           Point2d& closest_pt) {
   Point2d some_pt;
+  Point2d n(model[0],model[1]);
   if (model[0] == 0.0) {
     //vertical line
     some_pt.x = PoI.x;
     some_pt.y = -model[2];
   } else {
-    // horizontal line
-    some_pt.y = PoI.y;
-    some_pt.x = - ((float) model[1]*some_pt.y + model[2]) / model[0];
+    if (abs(model[0]) < 1.0) {
+      n.x = model[0]; n.y = model[1];
+      some_pt.x = PoI.x;
+      some_pt.y = - ((float) model[0]*some_pt.x + model[2]) / model[1];
+    } else {
+      n.x = model[1]; n.y = model[0];
+      some_pt.y = PoI.y;
+      some_pt.x = - ((float) model[1]*some_pt.y + model[2]) / model[0];
+    }
   }
-  Point n(model[0],model[1]);
   double n_magn = pow( (pow(n.x, 2.) + pow(n.y, 2.) ), 0.5 );
-  Point2d vec;
-  vec.x = PoI.x - some_pt.x;  vec.y = PoI.y - some_pt.y;
-  double n_1 = (vec.x * n.x + vec.y * n.y)/ n_magn;
+  Point2d vec(PoI.x - some_pt.x, PoI.y - some_pt.y);
+  double n_1 = (vec.x * n.x + vec.y * n.y) / n_magn;
   closest_pt.x = PoI.x - n_1 * n.x; closest_pt.y = PoI.y - n_1 * n.y;
+  // std::printf("\n" );
+  // std::printf("some_pt (%f, %f)\n", some_pt.x, some_pt.y);
+  // std::printf("PoI (%d, %d)\n", PoI.x, PoI.y);
+  // std::printf("n (%f, %f)\n", n.x, n.y);
+  // std::printf("vec (%f, %f)\n", vec.x, vec.y);
+  // std::printf("n_1: %f\n", n_1);
+  // std::printf("closest_pt (%f, %f)\n", closest_pt.x, closest_pt.y);
+  // std::printf("\n" );
+
 }
 
 void localizeContour(const std::vector<Point>& contour, int& contour_type,
@@ -717,6 +729,7 @@ void extractContours(Mat & img_gray) {
   // visualization for debugging
   Mat color;
   cv::cvtColor(edgeMap, color, cv::COLOR_GRAY2BGR);
+  color *= 0.;
 
   // interesting points for testing
   Point circle[] = {Point(104,197)};
@@ -730,10 +743,10 @@ void extractContours(Mat & img_gray) {
                           Point(151,330), Point(393,121)};
   Point line_edges[] = {Point(262,133), Point(246,300), Point(298, 482)};
   // seeds.clear();
-  // for (const auto& pt: occlusion2) {
+  // for (const auto& pt: toyblocks) {
   //   seeds.push_back(pt);
   // }
-  // seeds.push_back(Point(204,174));
+  // seeds.push_back(Point(512, 243));
 
   clock_t t = clock();
   std::vector<cv::Point> contour;
@@ -761,22 +774,46 @@ void extractContours(Mat & img_gray) {
     contour.clear();
     expandBranch2(seed, edgeMap, gradMap, Seen, contour, model, length);
 
-    if (contour.size() < 7) {
+    if (contour.size() < 9) {
       // std::printf("Contour too short: length %d\n", static_cast<int>(contour.size()));
       continue;
     }
     counter++;
 
-    // int contour_type;
-    // std::array<double,5> location;
-    // localizeContour(contour, contour_type, location);
+    int contour_type = -1;
+    std::array<double,5> location;
+    double est_radius = abs(model[1]/model[0]);
+    if (est_radius > std::max(img_gray.cols, img_gray.rows)) {
+      // now we have to fit it
+      std::array<double, 3> model;
+      int offset = 0;
+      double fit_error;
+      linearFit(contour.begin()+offset, contour.end()-offset,
+                model, fit_error);
+      if (fit_error < 5) {
+        continue;
+        contour_type = 0;
+        Point2d closest_pt;
+        closestPoint_line(model, contour.front(), closest_pt);
+        location[0] = closest_pt.x;        // x1
+        location[1] = closest_pt.y;         // y1
+        closestPoint_line(model, contour.back(), closest_pt);
+        location[2] = closest_pt.x;        // x2
+        location[3] = closest_pt.y;        // y2
+        location[4] = -model[0]/model[1];   // slope
+      }
+    }
+    if (contour_type == -1) {
+      // continue;
+      localizeContour(contour, contour_type, location);
+    }
     // if (contour_type == 0) {
-    //   // std::printf("Discovered a line\n" );
-    //   Point pt1(round(location[1]),round(location[0]));
-    //   Point pt2(round(location[3]),round(location[2]));
-    //   // std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
-    //   // cv::line(color, pt1, pt2, Scalar(0,180,255),1);
-    // } else {
+    //     // std::printf("Discovered a line\n" );
+    //     Point pt1(round(location[1]),round(location[0]));
+    //     Point pt2(round(location[3]),round(location[2]));
+    //     // std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
+    //     cv::line(color, pt1, pt2, Scalar(0,150,255),1);
+    // } else if (contour_type == 1) {
     //   // std::printf("Discovered an arc\n" );
     //   Point center(location[1],location[0]);
     //   int radius = static_cast<int>(round(location[4]));
@@ -785,28 +822,23 @@ void extractContours(Mat & img_gray) {
     //   double endAngle = 180*location[3]/PI;
     //   // std::printf("start: %f || end: %f \n",startAngle, endAngle );
     //   // cv::circle(color, center, radius, Scalar(0,255,0));
-    //   // cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
-    //   //             startAngle, endAngle, Scalar(180,0,255), 1);
+    //   cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
+    //               startAngle, endAngle, Scalar(180,0,255), 1);
     // }
 
     // color all points in a contour
-    // int j=0;
-    // for (auto& pt: contour) {
-    //   color.at<Vec3b>(pt.x,pt.y)[0] = 50;
-    //   color.at<Vec3b>(pt.x,pt.y)[1] = 60;
-    //   color.at<Vec3b>(pt.x,pt.y)[2] = 255;
-    //   j++;
-    // }
+    int j=0;
+    for (auto& pt: contour) {
+      color.at<Vec3b>(pt.x,pt.y)[0] = 0;
+      color.at<Vec3b>(pt.x,pt.y)[1] = 0;
+      color.at<Vec3b>(pt.x,pt.y)[2] = 255;
+      j++;
+    }
+    // //
+    color.at<Vec3b>(seed.x,seed.y)[0] = 255;
+    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
+    color.at<Vec3b>(seed.x,seed.y)[2] = 0;
 
-    // color.at<Vec3b>(seed.x,seed.y)[0] = 255;
-    // color.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    // color.at<Vec3b>(seed.x,seed.y)[2] = 0;
-    // color.at<Vec3b>(contour.front().x,contour.front().y)[0] = 0;
-    // color.at<Vec3b>(contour.front().x,contour.front().y)[1] = 255;
-    // color.at<Vec3b>(contour.front().x,contour.front().y)[2] = 0;
-    // color.at<Vec3b>(contour.back().x,contour.back().y)[0] = 0;
-    // color.at<Vec3b>(contour.back().x,contour.back().y)[1] = 255;
-    // color.at<Vec3b>(contour.back().x,contour.back().y)[2] = 0;
   }
 
   t = clock() - t;

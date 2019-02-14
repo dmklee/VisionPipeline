@@ -63,7 +63,7 @@ def inc_follow_contour(X_, Y_, plot_objects):
 		x = X_[i]
 		y = Y_[i]
 		error = 0.
-		tol = max((0.05 * 0.85**i), 0.002)
+		tol = max((0.5 * 0.85**i), 0.02)
 		if i > 10:
 			error = linear_fit_error(x, y, model) 
 		if error < tol:

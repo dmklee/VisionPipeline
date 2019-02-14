@@ -28,11 +28,12 @@ int main(int argc, char** argv )
   // blur(BW, cv::Size(19,19), 10.0);
   // runEdgeDrawing(image_gray);
   // runLineDrawing(image_gray);
+
   extractContours(BW);
 
   // namedWindow("Line Map", WINDOW_NORMAL );
   // resizeWindow("Line Map", 800, 600);
-  // imshow("Line Map", BW );
+  // imshow("Line Map", RG );
   // waitKey(0);
   return 0;
 }

@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 plt.style.use('classic')
 
-DATA = np.loadtxt('data.txt', delimiter=',')
-
-data_sorted = DATA[DATA[:, 0].argsort()]
+X = np.arange(0, 30, 0.3)
+Y = 0.5*X + npr.random(X.size)
 
 plt.figure()
-plt.plot(data_sorted[:,0], data_sorted[:,1],'.')
+plt.plot(X,Y)
 plt.show()
