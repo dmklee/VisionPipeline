@@ -791,7 +791,7 @@ void extractContours(Mat & img_gray) {
       linearFit(contour.begin()+offset, contour.end()-offset,
                 model, fit_error);
       if (fit_error < 5) {
-        continue;
+        // continue;
         contour_type = 0;
         Point2d closest_pt;
         closestPoint_line(model, contour.front(), closest_pt);
@@ -807,37 +807,37 @@ void extractContours(Mat & img_gray) {
       // continue;
       localizeContour(contour, contour_type, location);
     }
-    // if (contour_type == 0) {
-    //     // std::printf("Discovered a line\n" );
-    //     Point pt1(round(location[1]),round(location[0]));
-    //     Point pt2(round(location[3]),round(location[2]));
-    //     // std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
-    //     cv::line(color, pt1, pt2, Scalar(0,150,255),1);
-    // } else if (contour_type == 1) {
-    //   // std::printf("Discovered an arc\n" );
-    //   Point center(location[1],location[0]);
-    //   int radius = static_cast<int>(round(location[4]));
-    //   // std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
-    //   double startAngle = 180*location[2]/PI;
-    //   double endAngle = 180*location[3]/PI;
-    //   // std::printf("start: %f || end: %f \n",startAngle, endAngle );
-    //   // cv::circle(color, center, radius, Scalar(0,255,0));
-    //   cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
-    //               startAngle, endAngle, Scalar(180,0,255), 1);
-    // }
+    if (contour_type == 0) {
+        // std::printf("Discovered a line\n" );
+        Point pt1(round(location[1]),round(location[0]));
+        Point pt2(round(location[3]),round(location[2]));
+        // std::printf("(%d, %d) to (%d, %d)\n\n", pt1.x, pt1.y, pt2.x, pt2.y);
+        cv::line(color, pt1, pt2, Scalar(0,150,255),1);
+    } else if (contour_type == 1) {
+      // std::printf("Discovered an arc\n" );
+      Point center(location[1],location[0]);
+      int radius = static_cast<int>(round(location[4]));
+      // std::printf("centered at (%d, %d), r = %d\n\n", center.x, center.y, radius);
+      double startAngle = 180*location[2]/PI;
+      double endAngle = 180*location[3]/PI;
+      // std::printf("start: %f || end: %f \n",startAngle, endAngle );
+      // cv::circle(color, center, radius, Scalar(0,255,0));
+      cv::ellipse(color, center, cv::Size(radius, radius), 0.0,
+                  startAngle, endAngle, Scalar(180,0,255), 1);
+    }
 
     // color all points in a contour
-    int j=0;
-    for (auto& pt: contour) {
-      color.at<Vec3b>(pt.x,pt.y)[0] = 0;
-      color.at<Vec3b>(pt.x,pt.y)[1] = 0;
-      color.at<Vec3b>(pt.x,pt.y)[2] = 255;
-      j++;
-    }
-    // //
-    color.at<Vec3b>(seed.x,seed.y)[0] = 255;
-    color.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    color.at<Vec3b>(seed.x,seed.y)[2] = 0;
+    // int j=0;
+    // for (auto& pt: contour) {
+    //   color.at<Vec3b>(pt.x,pt.y)[0] = 0;
+    //   color.at<Vec3b>(pt.x,pt.y)[1] = 0;
+    //   color.at<Vec3b>(pt.x,pt.y)[2] = 255;
+    //   j++;
+    // }
+    // // //
+    // color.at<Vec3b>(seed.x,seed.y)[0] = 255;
+    // color.at<Vec3b>(seed.x,seed.y)[1] = 0;
+    // color.at<Vec3b>(seed.x,seed.y)[2] = 0;
 
   }
 
