@@ -76,15 +76,17 @@ def inc_follow_contour(X_, Y_, plot_objects):
 			np.append(rejects_y,[y])
 			rejects.set_data(list(rejects_x) + [x] , list(rejects_y)+[y])
 		if i > 2:
-			linear_model.set_xdata([X_[i+1], X_[i]])
-			linear_model.set_ydata([calc_y(X_[i+1], model), 
-									calc_y(X_[i], model)])
-			upper_lim.set_xdata([X_[i+1], X_[i]])
-			upper_lim.set_ydata([calc_y(X_[i+1], model)+tol**0.5, 
-									calc_y(X_[i], model)+tol**0.5])
-			lower_lim.set_xdata([X_[i+1], X_[i]])
-			lower_lim.set_ydata([calc_y(X_[i+1], model)-tol**0.5, 
-									calc_y(X_[i], model)-tol**0.5])
+			x_lo = np.amin(X_[:(i+1)])
+			x_hi = np.amax(X_[:(i+1)]) 
+			linear_model.set_xdata([x_lo, x_hi])
+			linear_model.set_ydata([calc_y(x_lo, model), 
+									calc_y(x_hi, model)])
+			upper_lim.set_xdata([x_lo, x_hi])
+			upper_lim.set_ydata([calc_y(x_lo, model)+tol**0.5, 
+									calc_y(x_hi, model)+tol**0.5])
+			lower_lim.set_xdata([x_lo, x_hi])
+			lower_lim.set_ydata([calc_y(x_lo, model)-tol**0.5, 
+									calc_y(x_hi, model)-tol**0.5])
 			r_est = abs(model['B']/model['A'])
 			curv_text.set_text('Est. Radius: {} pixels'.format(np.round(r_est,1)))
 

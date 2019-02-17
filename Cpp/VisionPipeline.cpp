@@ -11,29 +11,28 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  Mat image = imread("../Pics/shapes.png", 1);
-  Mat image_gray;
-  cvtColor( image, image_gray, CV_BGR2GRAY );
-  // cv::Mat noise = Mat(image_gray.size(), CV_64F);
-  // cv::randn(noise, 0, 0.05);
-  // image_gray += noise;
-  // normalize(image_gray, image_gray, 0.0, 1.0, CV_MINMAX, CV_64F);
-  // image_gray.convertTo(image_gray, CV_32F, 255, 0);
-  // suppressNoise(image, image);
-  Mat BW = Mat(image.rows, image.cols, CV_8UC1);
-  Mat RG = Mat(image.rows, image.cols, CV_8UC1);
-  Mat YB = Mat(image.rows, image.cols, CV_8UC1);
-  convertToBWRGYB(image, BW, RG, YB);
-  // addGaussianNoise(BW, BW, 0, 30);
-  // blur(BW, cv::Size(19,19), 10.0);
-  // runEdgeDrawing(image_gray);
-  // runLineDrawing(image_gray);
+  int num_files = 23;
+  for (int i = 0; i != num_files; i++) {
+    Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
+    Mat image_gray;
+    cvtColor( image, image_gray, CV_BGR2GRAY );
 
-  extractContours(BW);
+    // Mat BW = Mat(image.rows, image.cols, CV_8UC1);
+    // Mat RG = Mat(image.rows, image.cols, CV_8UC1);
+    // Mat YB = Mat(image.rows, image.cols, CV_8UC1);
+    // convertToBWRGYB(image, BW, RG, YB);
+    Mat contourMap = Mat::zeros(image_gray.rows, image_gray.cols, CV_8UC3);
+    extractContours(image_gray, contourMap);
 
-  // namedWindow("Line Map", WINDOW_NORMAL );
-  // resizeWindow("Line Map", 800, 600);
-  // imshow("Line Map", RG );
-  // waitKey(0);
+    hconcat(image, contourMap, image);
+
+    // imwrite( "../Pics/results/contour" + std::to_string(i) +".JPG" , color );
+
+    namedWindow("Seed Map", WINDOW_NORMAL );
+    moveWindow("Seed Map", 0,30);
+    resizeWindow("Seed Map", 800,600);
+    imshow("Seed Map", image );
+    waitKey(0);
+  }
   return 0;
 }
