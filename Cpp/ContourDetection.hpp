@@ -491,6 +491,7 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
   int edgeVal, grad_id;
   double tol = 0.1;
   double tol_min = 0.02;
+  double decay_rate = 0.85;
   double fit_error = 0.0;
   int alarm_left = 0;
   int alarm_right = 0;
@@ -512,7 +513,7 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
     myfile << curv_data_left.x << "," << curv_data_left.y << "\n";
   }
   for (int i = 0; i < max_length/2; i++) {
-    tol *= 0.85;
+    tol *= decay_rate;
     // std::printf("Left alive: %d, right_alive: %d\n", left_alive, right_alive);
     if ( !left_alive || !right_alive || (tol < tol_min)) tol = tol_min;
 
@@ -723,6 +724,8 @@ void extractContours(Mat & img_gray, Mat& contour_map) {
   std::vector<cv::Point> seeds;
   t_total += extractSeeds(edgeMap, gradMap, seeds, time_it);
 
+  cv::cvtColor(edgeMap, contour_map, CV_GRAY2BGR);
+
   // interesting points for testing
   Point circle[] = {Point(104,197)};
   Point ellipse[] = {Point(83,331)};
@@ -738,7 +741,7 @@ void extractContours(Mat & img_gray, Mat& contour_map) {
   // for (const auto& pt: toyblocks) {
   //   seeds.push_back(pt);
   // }
-  // seeds.push_back(Point(170,109));
+  // seeds.push_back(Point(66,349));
 
   clock_t t = clock();
   std::vector<cv::Point> contour;
@@ -826,7 +829,7 @@ void extractContours(Mat & img_gray, Mat& contour_map) {
     //   contour_map.at<Vec3b>(pt.x,pt.y)[2] = 255;
     //   j++;
     // }
-    // // // // //
+    // // // // // //
     // contour_map.at<Vec3b>(seed.x,seed.y)[0] = 255;
     // contour_map.at<Vec3b>(seed.x,seed.y)[1] = 0;
     // contour_map.at<Vec3b>(seed.x,seed.y)[2] = 0;
