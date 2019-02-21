@@ -830,9 +830,7 @@ void extractContours(Mat & img_gray, Mat& contour_map) {
     //   j++;
     // }
     // // // // // //
-    // contour_map.at<Vec3b>(seed.x,seed.y)[0] = 255;
-    // contour_map.at<Vec3b>(seed.x,seed.y)[1] = 0;
-    // contour_map.at<Vec3b>(seed.x,seed.y)[2] = 0;
+    contour_map.at<Vec ] = 0;
 
   }
 

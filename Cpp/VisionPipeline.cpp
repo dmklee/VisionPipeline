@@ -11,8 +11,8 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  int num_files = 23;
-  for (int i=0; i < num_files; i++ ) {
+  int num_files = 13;
+  for (int i=12; i < num_files; i++ ) {
     Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
     Mat image_gray;
     cvtColor( image, image_gray, CV_BGR2GRAY );
