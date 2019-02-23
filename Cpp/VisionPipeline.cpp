@@ -11,8 +11,9 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  int num_files = 13;
-  for (int i=12; i < num_files; i++ ) {
+  int num_files = 23;
+  for (int i=0; i < num_files; i++ ) {
+
     Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
     Mat image_gray;
     cvtColor( image, image_gray, CV_BGR2GRAY );
@@ -22,7 +23,8 @@ int main(int argc, char** argv )
     // Mat YB = Mat(image.rows, image.cols, CV_8UC1);
     // convertToBWRGYB(image, BW, RG, YB);
     Mat contourMap;
-    extractContours(image_gray, contourMap);
+    // extractContours(image_gray, contourMap);
+    extractCorners(image_gray, contourMap);
 
     hconcat(image, contourMap, image);
 

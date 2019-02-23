@@ -105,14 +105,29 @@ Y_ = DATA[:,1]
 # if (np.abs(delta) > 1).any():
 # 	i = np.argmax(np.abs(delta))
 # 	Y_[i+1:] -= delta[i]
-data_sorted = DATA[DATA[:, 0].argsort()]
-
+DATA = DATA[DATA[:, 0].argsort()]
+ids = DATA[:,0]
+angle = DATA[:,1]
+d_angle = DATA[:,2]
+accum_d_angle = DATA[:,3]
+corner_mask = DATA[:,4] == 1
 
 fig = plt.figure(figsize=(18,10))
-plt.plot(data_sorted[:,0], data_sorted[:,1], '.-')
+fig.add_subplot(311)
+plt.plot(ids, angle, '.-')
+plt.plot(ids[corner_mask], angle[corner_mask], 'ro')
+plt.xlim((np.amin(X_) - X_.size//8, np.amax(X_) + X_.size//8))
+plt.ylim((np.amin(Y_) - 0.2, np.amax(Y_)+0.2))
+
+fig.add_subplot(312)
+plt.plot(ids, d_angle, 'b.-')
+plt.plot(ids[corner_mask], d_angle[corner_mask], 'ro')
 plt.xlim((np.amin(X_) - X_.size//8, np.amax(X_) + X_.size//8))
 
-plt.ylim((np.amin(Y_) - 0.2, np.amax(Y_)+0.2))
+fig.add_subplot(313)
+plt.plot(ids, accum_d_angle)
+plt.xlim((np.amin(X_) - X_.size//8, np.amax(X_) + X_.size//8))
+
 
 # plt.show()
 
@@ -126,6 +141,6 @@ curv_text = plt.text(X_[-X_.size//6], 1.1*np.amax(Y_), '')
 plot_objects = (rejects, accepts, linear_model, upper_lim, lower_lim, curv_text)
 
 
-anim = animation.FuncAnimation(fig, inc_follow_contour(X_, Y_, plot_objects), frames=X_.size-1, 
-									interval=100, blit=True, repeat=False)
+# anim = animation.FuncAnimation(fig, inc_follow_contour(X_, Y_, plot_objects), frames=X_.size-1, 
+									# interval=10, blit=True, repeat=False)
 plt.show()

@@ -25,6 +25,8 @@ iostream
 -
 fstream
 -
+numeric
+-
 
 /home/david/Desktop/VisionPipeline/Cpp/EdgeDrawing.hpp
 opencv2/opencv.hpp
