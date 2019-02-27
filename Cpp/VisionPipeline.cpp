@@ -11,8 +11,9 @@ using namespace cv;
 
 int main(int argc, char** argv )
 {
-  int num_files = 23;
-  for (int i=0; i < num_files; i++ ) {
+  int num_files = 1;
+  int start = 4;
+  for (int i=start; i < start+num_files; i++ ) {
 
     Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
     Mat image_gray;

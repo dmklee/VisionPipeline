@@ -20,6 +20,24 @@ using namespace cv;
 
 typedef std::vector<cv::Point>::const_iterator vec_iter_t;
 
+double computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[],
+                              bool time_it=false) {
+  clock_t t = clock();
+  Mat abs_grad_x, abs_grad_y;
+  int ddepth = CV_16S;
+  cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
+  cv::Sobel( image_gray, gradMap[1], ddepth, 0, 1, 3 );
+  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.4);
+  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.4);
+  cv::add(abs_grad_x, abs_grad_y, edgeMap);
+  t = clock() - t;
+  if (time_it) {
+  std::printf("\tI computed edge and gradient maps in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  }
+  return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
+}
+
 inline int getGradID(const short grad_x, const short grad_y) {
   float ratio = grad_x != 0 ? ((float)grad_y)/grad_x : ((float)grad_y)/0.0001;
   if (abs(ratio) < 0.5) {
@@ -50,31 +68,6 @@ inline int subtractGradID_abs(const int& g1, const int& g2) {
   return diff;
 }
 
-// inline int subtractGradID(const int& g1, const int& g2) {
-//   std::printf("subtractGradID not working\n" );
-//   int diff = abs(g1 - g2);
-//   if (diff > 4) diff = 8 - diff;
-//   return diff;
-// }
-
-double computeEdgeAndGradMap(Mat& image_gray, Mat& edgeMap, Mat gradMap[],
-                              bool time_it=false) {
-  clock_t t = clock();
-  Mat abs_grad_x, abs_grad_y;
-  int ddepth = CV_16S;
-  cv::Sobel( image_gray, gradMap[0], ddepth, 1, 0, 3 );
-  cv::Sobel( image_gray, gradMap[1], ddepth, 0, 1, 3 );
-  cv::convertScaleAbs( gradMap[0], abs_grad_x, 0.4);
-  cv::convertScaleAbs( gradMap[1], abs_grad_y, 0.4);
-  cv::add(abs_grad_x, abs_grad_y, edgeMap);
-  t = clock() - t;
-  if (time_it) {
-  std::printf("\tI computed edge and gradient maps in %f ms\n",
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
-  }
-  return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
-}
-
 inline void moveAlongContour(cv::Point& new_pt, const int& grad_id,
                               const Mat& edgeMap) {
     static cv::Point offsets[] = {Point(-1,0), Point(-1,-1), Point(0,-1),
@@ -96,8 +89,8 @@ inline void moveAlongContour(cv::Point& new_pt, const int& grad_id,
     new_pt += offsets[max_id];
 }
 
-inline bool isValidSeed( const int x, const int y, const Mat& edgeMap, const Mat gradMap[],
-                 const int gradThreshold=10) {
+inline bool isValidSeed(const int x, const int y, const Mat& edgeMap,
+                        const Mat gradMap[], const int gradThreshold=10) {
   if (edgeMap.at<uchar>(x,y) < gradThreshold) return false;
   int grad_id = getGradID(gradMap, Point(x,y)) % 4;
   switch (grad_id) {
@@ -347,7 +340,8 @@ void incSlopeFit(const double& x_n, std::array<double, 5>& record) {
   record[3] = record[2];
 }
 
-inline bool checkSlopeFit(const double& x_n, const std::array<double, 5>& record,
+inline bool checkSlopeFit(const double& x_n,
+                          const std::array<double, 5>& record,
                           const double& threshold) {
   double std_dev = pow(record[2]/record[4], 0.5);
   return abs(x_n - record[0])/std_dev < threshold ;
@@ -367,57 +361,6 @@ inline double getAngleDifference( const double theta1, const double theta2) {
   if (diff < -PI) diff = diff + 2. * PI;
   return diff;
 }
-
-// bool exploreContour(const Point& seed, Mat& edgeMap, Mat gradMap[],
-//                     std::vector<cv::Point>& contour, const int explore_length=4) {
-//     // add early failure detection
-//     int grad_id;
-//     cv::Point new_pt = Point(seed);
-//     std::vector<float> v_grad_ids;
-//     int edgeVal;
-//     int del_grad_id;
-//     float tmp;
-//     for (int i = 0; i < explore_length; i++) {
-//       grad_id = getGradID(gradMap, new_pt);
-//       del_grad_id = moveAlongContour(new_pt, grad_id, edgeMap, edgeVal);
-//       if (edgeVal < 15) return false;
-//       contour.push_back(new_pt);
-//       // tmp = grad_id + 0.5*del_grad_id;
-//       // if (tmp < 0) tmp += 8;
-//       // v_grad_ids.push_back(tmp);
-//       v_grad_ids.push_back(getContourAngle(gradMap, new_pt));
-//     }
-//     std::reverse(std::begin(contour), std::end(contour));
-//     std::reverse(std::begin(v_grad_ids), std::end(v_grad_ids));
-//     contour.push_back(seed);
-//     // v_grad_ids.push_back(getGradID(gradMap,seed));
-//     v_grad_ids.push_back(getContourAngle(gradMap, seed));
-//
-//     new_pt = Point(seed);
-//     for (int i = 0; i < explore_length; i++) {
-//       grad_id = (getGradID(gradMap, new_pt)+4) % 8;
-//       del_grad_id = moveAlongContour(new_pt, grad_id, edgeMap, edgeVal);
-//       if (edgeVal < 15) return false;
-//       contour.push_back(new_pt);
-//       // tmp = grad_id + 4 + 0.5*del_grad_id;
-//       // if (tmp > 8) tmp -= 8;
-//       // v_grad_ids.push_back(((2*grad_id+del_grad_id+8)%16)/2.);
-//       v_grad_ids.push_back(getContourAngle(gradMap, new_pt));
-//     }
-//
-//     cv::Point3f lineParams;
-//     double lin_error;
-//     linearFit(contour.begin(), contour.end(), lineParams, lin_error);
-//     if (lin_error > 1.) return false;
-//
-//     int g1 = v_grad_ids.front();
-//     int g2 = v_grad_ids[explore_length];
-//     int g3 = v_grad_ids.back();
-//     // if (diff >= 2) std::cout << "\t";
-//
-//     return subtractGradID_abs(g1, g2) < 2 & subtractGradID_abs(g2, g3) < 2 &
-//                 subtractGradID_abs(g1, g3) < 2;
-// }
 
 void expandBranch(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
                     std::vector<cv::Point>& contour, std::array<double,3 >& model,
@@ -611,8 +554,66 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
   if (store_data)  myfile.close();
 } // end function
 
+void walkEdge(Point& pt, Mat gradMap[], Mat& edgeMap,
+          bool direction, double& dAngle) {
+  double angle_1 = getContourAngle(gradMap, pt);
+  int grad_id = getGradID(gradMap, pt);
+  if (!direction) {
+    grad_id = (grad_id+4)%8;
+  }
+  moveAlongContour(pt, grad_id, edgeMap);
+  double angle_2 = getContourAngle(gradMap, pt);
+  dAngle = getAngleDifference(angle_1, angle_2);
+}
+
+inline bool isValidWalk(const Point& pt, const Mat& edgeMap, const Mat& Seen) {
+  // valid iff the pt has not been seen and it has a high enough edge value
+  return  (Seen.at<uchar>(pt.x, pt.y) != 255) &&
+          (edgeMap.at<uchar>(pt.x, pt.y) >= 15);
+}
+
+// void findCorners2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
+//                   std::vector<Point>& corners) {
+//   double THRESH_dAngle = 0.25;
+//
+//
+//   Point pt(seed);
+//   bool direction = true;
+//   double dAngle = 0.0;
+//   double sum_dAngle;
+//   bool isCorner = false;
+//   bool tmp_bool;
+//   std::array<double, 3>& arr_dAngle = {{0., 0., 0.}};
+//   for (int i=0; i != 2; i++) {
+//     do {
+//       walkEdge(pt, gradMap, edgeMap, direction, dAngle);
+//       arr_dAngle[0] = arr_dAngle[1];
+//       arr_dAngle[1] = arr_dAngle[2];
+//       arr_dAngle[2] = dAngle;
+//       sum_dAngle = std::accumulate(arr_dAngle.begin(), arr_dAngle.end(), 0.0);
+//       tmp_bool = (abs(sum_dAngle) > THRESH_dAngle);
+//       if (isCorner && !tmp_bool) {
+//         // just left corner region so reset
+//       }
+//       isCorner = tmp_bool;
+//       if (isCorner) {
+//
+//       }
+//
+//     } while( isValidWalk(pt, edgeMap, Seen) );
+//
+//
+//
+//
+//     direction = !direction;
+//     pt = Point(seed);
+//     std::fill(std::begin(arr_dAngle), std::end(arr_dAngle), 0.0);
+//   }
+// }
+
 void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
-                std::vector<Point>& corners, bool store_data=false) {
+                std::vector<Point>& corners, bool store_data=false)
+{
   double angle_new_left, angle_old_left, d_angle_left;
   double angle_new_right, angle_old_right, d_angle_right;
   d_angle_left = d_angle_right = 0.;
@@ -629,7 +630,7 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
 
   std::ofstream myfile;
   if (store_data) {
-    myfile.open("../data.txt");
+    myfile.open("../data_04.txt");
   }
 
   int counter = 0;
@@ -638,6 +639,7 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
     myfile << counter << "," << angle_old_left << ",";
     myfile << 0.0 << "," << 0.0 << "," << false << "\n";
   }
+
   bool is_corner;
   while (alive_left or alive_right) {
     counter++;
@@ -960,9 +962,14 @@ void extractCorners(Mat& img_gray, Mat& contour_map) {
 
   std::vector<cv::Point> seeds;
   extractSeeds(edgeMap, gradMap, seeds);
-  // seeds.clear();
+  seeds.clear();
   // seeds.push_back(Point(165,309)); // img10
   // seeds.push_back(Point(171,295)); // img09
+  // seeds.push_back(Point(104,272)); // img08
+  // seeds.push_back(Point(140,329)); // img07
+  // seeds.push_back(Point(118,377)); // img06
+  // seeds.push_back(Point(110,347)); // img05
+  seeds.push_back(Point(162,310)); // img04
 
   std::vector<Point> corners;
   for (auto& seed: seeds) {
@@ -979,7 +986,7 @@ void extractCorners(Mat& img_gray, Mat& contour_map) {
       continue;
     }
 
-    findCorners(seed, edgeMap, gradMap, Seen, corners, false);
+    findCorners(seed, edgeMap, gradMap, Seen, corners, true);
     // contour_map.at<Vec3b>(seed.x,seed.y)[0] = 255;
     // contour_map.at<Vec3b>(seed.x,seed.y)[1] = 0;
     // contour_map.at<Vec3b>(seed.x,seed.y)[2] = 0;
