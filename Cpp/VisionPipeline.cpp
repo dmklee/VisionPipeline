@@ -30,11 +30,11 @@ int main(int argc, char** argv )
     hconcat(image, contourMap, image);
 
     // imwrite( "../Pics/results/contour" + std::to_string(i) +".JPG" , color );
-
-    namedWindow("Seed Map", WINDOW_NORMAL );
-    moveWindow("Seed Map", 0,30);
-    resizeWindow("Seed Map", 800,600);
-    imshow("Seed Map", image );
+    std::string img_name = "img_" + std::to_string(i);
+    namedWindow(img_name, WINDOW_NORMAL );
+    moveWindow(img_name, 0,30);
+    resizeWindow(img_name, 800,600);
+    imshow(img_name, image );
     waitKey(0);
   }
   return 0;

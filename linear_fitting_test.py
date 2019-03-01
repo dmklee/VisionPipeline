@@ -99,7 +99,8 @@ def inc_follow_contour(X_, Y_, plot_objects):
 # X_ = np.sort(100.*npr.uniform(size=LENGTH))
 # Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
 
-DATA = np.loadtxt('data_04.txt', delimiter = ',')
+IMG = "05"
+DATA = np.loadtxt('data_' + IMG + '.txt', delimiter = ',')
 X_ = DATA[:,0]
 Y_ = DATA[:,1]
 
@@ -187,6 +188,7 @@ def step_corner_detection(ids, d_angle, plot_objects):
 
 
 fig = plt.figure(figsize=(12,8))
+plt.title('img_'+IMG)
 gs1 = GridSpec(3,5)
 
 # show angle
