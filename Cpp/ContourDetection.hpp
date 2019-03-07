@@ -1008,14 +1008,14 @@ void extractCorners(Mat& img_gray, Mat& contour_map) {
   std::vector<cv::Point> seeds;
   extractSeeds(edgeMap, gradMap, seeds);
   seeds.clear();
-  // seeds.push_back(Point(165,309)); // img10
+  seeds.push_back(Point(165,309)); // img10
   // seeds.push_back(Point(171,295)); // img09
   // seeds.push_back(Point(104,272)); // img08
   // seeds.push_back(Point(140,329)); // img07
   // seeds.push_back(Point(118,377)); // img06
   // seeds.push_back(Point(110,347)); // img05
   // seeds.push_back(Point(162,310)); // img04
-  seeds.push_back(Point(262,367)); //occlusion4
+  // seeds.push_back(Point(262,367)); //occlusion4
 
   std::vector<Point> corners;
   std::vector<Point> near_corners;

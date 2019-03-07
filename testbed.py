@@ -6,7 +6,7 @@ def gaussian(x, mu, var):
 	return np.exp(-np.power(x-mu, 2.)/(2.*var))
 
 DATA = np.loadtxt('data.txt', delimiter = ',')
-DATA = DATA[DATA[:, 0].argsort()][::-1][5:250]
+DATA = DATA[DATA[:, 0].argsort()]
 ids = DATA[:,0]
 x_coords = DATA[:,1]
 y_coords = DATA[:,2]
@@ -23,75 +23,100 @@ d_angles[d_angles >  np.pi] -= 2*np.pi
 d_angles[d_angles < -np.pi] += 2*np.pi
 d_angles /= np.pi/4. # discretize
 
-fig = plt.figure(figsize=(16,6))
-ax1 = fig.add_subplot(411)
-plt.plot(d_angles, '-o', markersize=3)
+thetas = np.cumsum(d_angles)
+
+fig = plt.figure(figsize=(16,10))
 plt.tight_layout()
-plt.ylim((np.amin(d_angles)-1, np.amax(d_angles)+1))
-plt.setp(ax1.get_xticklabels(), visible=False)
-plt.ylabel('dAngle')
+ax0 = fig.add_subplot(411)
+ax0.plot(thetas, '-o', markersize=3)
+ax0.set_ylim((np.amin(thetas)-1,np.amax(thetas)+1))
 
-ax2 = fig.add_subplot(412, sharex=ax1)
-theta = np.cumsum(d_angles).astype(int)
-plt.plot(theta, '-o', markersize=3)
-plt.tight_layout()
-plt.ylim((np.amin(theta)-1, np.amax(theta)+1))
-plt.yticks(np.arange(np.amin(theta)-1,np.amax(theta)+2))
-plt.setp(ax2.get_xticklabels(), visible=False)
-plt.ylabel('Angle')
-
-ax3 = fig.add_subplot(413, sharex=ax1)
-ax3_data = []
-ax3_plot, = plt.plot([],[])
-plt.tight_layout()
-plt.ylabel("Uncertainty")
-plt.ylim((-0.5, 0.5))
-
-# ax4 = fig.add_subplot(414)
-# PDF_prior = np.array([0.05, 0.25, 0.4, 0.25, 0.05])
-# PDF = np.copy(PDF_prior)
-# PDF_bar = plt.bar([a-2 for a in range(5)], PDF, width=1, align='center')
-# plt.tight_layout()
-# plt.ylim((0, 1))
+THRESHOLD_ERR = 0.6
+ax1 = fig.add_subplot(412)
+# ax1.plot(thetas, '-o', markersize=3)
+# ax1.set_ylim((np.amin(thetas)-1,np.amax(thetas)+1))
+err_plot, = ax1.plot([],[], '-o', markersize=3)
+ax1.plot([0,thetas.size],[0,0],'k--')
+ax1.plot([0,thetas.size],2*[THRESHOLD_ERR],'k:')
+ax1.plot([0,thetas.size],2*[-THRESHOLD_ERR],'k:')
+ax1.set_ylim((-2.5,2.5))
 
 
-# animated plot objects
-current_dAngle, = ax1.plot([],[],'ro', markersize=6)
-current_angle, = ax2.plot([],[],'ro', markersize=6)
+ax2 = fig.add_subplot(413)
+lag_plot, = ax2.plot([],[])
+front_plot, = ax2.plot([],[])
+pred_plot, = ax2.plot([],[], '-x', markersize=4)
+# ax2.legend(['average', 'observed', 'predicted'])
+ax2.plot([0,thetas.size],[0,0],'k--')
+ax2.set_ylim((-2.5,2.5))
+ax2.set_yticks(np.arange(-2,3))
 
-TSTEP = 0.0001
-integral = 0.0
-DECAY_RATE = 0.8
-mu = 0
-x = 0
-counter = 0
-for i in range(ids.size-2):
-	counter += 1
-	x += d_angles[i]
-	mu += 1.0*(x-mu)/(counter)
-	if counter > 5:
-		integral += (x-mu)
+ax3 = fig.add_subplot(414)
+ax3.plot([0, thetas.size], 2*[0], 'k:')
+ax3.plot(d_angles, '-o', markersize=3)
+ax3.set_ylim((-2.5,2.5))
 
-	ax3_data.append(integral)
-	ax3_plot.set_data(np.arange(i+1),ax3_data)
 
-	current_angle.set_data(i, theta[i])
-	current_dAngle.set_data(i, d_angles[i])
+LAG = []
+FRONT = []
+ERR = []
+I = []
+CORNERS = []
 
-	if abs(integral) > 0.5 and counter > 5:
-		mu = 0
-		x = -d_angles[i+1]
-		counter = 0
-		integral = 0.0
-		# PDF[:] = PDF_prior[:]
-		ax1.plot(i, d_angles[i], 'r|', markersize=100)
-		ax2.plot(i, theta[i], 'r|', markersize=100)
 
-	# plt.draw()
-	# plt.pause(TSTEP)
+err = 0
+count = 0
+total_i = 0
+x_arr = np.zeros(3)
+total_i = 0
+running = True
+while running:
+	err = 0
+	count = 0
+	x_arr = np.zeros(3)
+	while True:
+		I.append(total_i)
+		if count == 0:
+			x_front = 0
+			mu_front = 0
+		else:
+			x_front += d_angles[total_i]
+			mu_front += (x_front-mu_front)/2.
 
-# plt.figure()
-# plt.plot(x_coords, y_coords)
+		if count < 3:
+			x = 0
+			mu = 0
+		else:
+			x += d_angles[total_i-3]
+			mu += (x - mu)/(count-2.0)
 
+		err += (mu - mu_front)
+		err *= 0.8
+		FRONT.append(mu_front)
+		LAG.append(mu)
+		ERR.append(err)
+		front_plot.set_data(I,FRONT)
+		lag_plot.set_data(I, LAG)
+		err_plot.set_data(I,ERR)
+		
+		if total_i == thetas.size-1:
+			running = False
+			break
+		if abs(err) > THRESHOLD_ERR:	
+			ax0.plot(total_i, thetas[total_i], 'r|', markersize=200)
+			ax1.plot(total_i, 0, 'r|', markersize=200)
+			ax2.plot(total_i, 0, 'r|', markersize=200)
+			ax3.plot(total_i, 0, 'r|', markersize=200)
+			CORNERS.append(total_i)
+			break
+		count += 1
+		total_i += 1
+
+
+plt.figure()
+plt.plot(y_coords,-x_coords)
+plt.plot(y_coords[ids==0], -x_coords[ids==0], 'g^', markersize=6)
+plt.plot(y_coords[CORNERS], -x_coords[CORNERS], 'rs', markersize=3)
+plt.axis('equal')
 
 plt.show()
