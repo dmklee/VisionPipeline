@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <math.h>
+#include "ContourDetection.hpp"
 
 struct Line {
   // _A * x + _B * y + _C = 0
@@ -19,17 +20,151 @@ typedef std::vector< Line > lineChain_type;
 typedef std::vector< lineChain_type > lineChainList_type;
 typedef seg_type::iterator seg_it_type;
 
-void computeGrad(const Mat& img, Mat& grad, Mat& dirMap, Mat& angleMap) {
-  Mat grad_x, grad_y;
-  Mat abs_grad_x, abs_grad_y;
-  int ddepth = CV_32F;
-  cv::Sobel( img, grad_x, ddepth, 1, 0, 3, 0.5);
-  cv::convertScaleAbs( grad_x, abs_grad_x, 1);
-  cv::Sobel( img, grad_y, ddepth, 0, 1, 3, 0.5 );
-  cv::convertScaleAbs( grad_y, abs_grad_y, 1);
-  dirMap = abs_grad_x >= abs_grad_y;
-  cv::cartToPolar(grad_x,grad_y,grad,angleMap);
-  grad.convertTo(grad,CV_8U);
+
+
+inline bool stabilizeAnchor(cv::Point& pt, const Mat& edgeMap,
+                            const Mat gradMap[],
+                            const int gradThreshold,
+                            const int peakThreshold) {
+  int NUM_ATTEMPTS = 5;
+  uchar val;
+  int i;
+  bool done = false;
+  int grad_id;
+  for (i=0; i < NUM_ATTEMPTS; i++) {
+    val = edgeMap.at<uchar>( pt.x, pt.y);
+    if (val < gradThreshold) return false;
+    // walk up contour
+    grad_id = getGradID(gradMap, pt) % 4;
+    switch (grad_id) {
+      case 0:
+        if (val < edgeMap.at<uchar>(pt.x, pt.y+1)) {
+          pt.y++;
+        } else if (val < edgeMap.at<uchar>(pt.x, pt.y-1)) {
+          pt.y--;
+        } else {
+          done = true;
+        }
+        break;
+      case 1:
+        if (val < edgeMap.at<uchar>(pt.x-1, pt.y+1)) {
+          pt.x--; pt.y++;
+        } else if (val < edgeMap.at<uchar>(pt.x+1, pt.y-1)) {
+          pt.x++; pt.y--;
+        } else {
+          done = true;
+        }
+        break;
+      case 2:
+        if (val < edgeMap.at<uchar>(pt.x+1, pt.y)) {
+          pt.x++;
+        } else if (val < edgeMap.at<uchar>(pt.x-1, pt.y)) {
+          pt.x--;
+        } else {
+          done = true;
+        }
+        break;
+      case 3:
+        if (val < edgeMap.at<uchar>(pt.x+1, pt.y+1)) {
+          pt.x++; pt.y++;
+        } else if (val < edgeMap.at<uchar>(pt.x- 1, pt.y-1)) {
+          pt.x--; pt.y--;
+        } else {
+          done = true;
+        }
+        break;
+    }
+    if (done) break;
+  }
+  // return i < NUM_ATTEMPTS-1;
+  val = edgeMap.at<uchar>( pt.x, pt.y);
+  grad_id = getGradID(gradMap, pt) % 4;
+  switch (grad_id) {
+    case 0:
+      if (val > peakThreshold + edgeMap.at<uchar>(pt.x, pt.y+1) &&
+          val > peakThreshold + edgeMap.at<uchar>(pt.x, pt.y-1)) {
+        return true;
+      }
+      break;
+    case 1:
+      if (val > peakThreshold + edgeMap.at<uchar>(pt.x-1, pt.y+1) &&
+          val > peakThreshold + edgeMap.at<uchar>(pt.x+1, pt.y-1)) {
+        return true;
+      }
+      break;
+    case 2:
+      if (val > peakThreshold + edgeMap.at<uchar>(pt.x+1, pt.y) &&
+          val > peakThreshold + edgeMap.at<uchar>(pt.x-1, pt.y)) {
+        return true;
+      }
+      break;
+    case 3:
+      if (val > peakThreshold + edgeMap.at<uchar>(pt.x-1, pt.y-1) &&
+          val > peakThreshold + edgeMap.at<uchar>(pt.x+1, pt.y+1)) {
+        return true;
+      }
+      break;
+  }
+  return false;
+}
+
+double extractAnchors_smart(Mat& edgeMap, Mat gradMap[],std::vector<Point>& dst,
+                  bool time_it=true, int size=9,
+                  const int gradThreshold=15,
+                  const int peakThreshold=4) {
+  clock_t t = clock();
+  Mat region_frame;
+  Point current_pt;
+  Point anchor;
+  Point offset = Point(size,size);
+  double minVal;
+  double maxVal;
+  Point minLoc;
+  Point maxLoc;
+
+  for(int y=5; y<=(edgeMap.rows - size); y+=size) {
+      for(int x=5; x<=(edgeMap.cols - size); x+=size) {
+          current_pt.x = x;
+          current_pt.y = y;
+          Rect region = Rect(current_pt, current_pt+offset);
+          region_frame = edgeMap(region);
+          minMaxLoc( region_frame, &minVal, &maxVal, &minLoc, &maxLoc );
+          anchor = current_pt+maxLoc;
+          if (stabilizeAnchor(anchor, edgeMap, gradMap, gradThreshold,
+                              peakThreshold)) {
+            dst.push_back(anchor);
+          }
+      }
+  }
+  t = clock() - t;
+  if (time_it) {
+    std::printf("\tI extracted %d anchors in %f ms\n", static_cast<int>(dst.size()),
+                ((float)t)/CLOCKS_PER_SEC*1000.0);
+  }
+  return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
+}
+
+void extractEdgeSegment(const Point& anchor, Mat& edgeMap, Mat gradMap[],
+                        Mat& Seen, std::vector<Point>& edgeSegment,
+                        const int gradThreshold=15 )
+{
+  bool alive_left = true;
+  bool alive_right = true;
+  bool direction = true;
+  int grad_id;
+  Point pt;
+  for (int i=0; i < 2; i++) {
+    pt = Point(anchor);
+    do {
+      Seen.at<uchar>(pt.x,pt.y) = 255;
+      edgeSegment.push_back(pt);
+      grad_id = getGradID(gradMap, pt);
+      if (direction) grad_id = (grad_id+4)%8;
+      moveAlongContour(pt, grad_id, edgeMap);
+    } while (edgeMap.at<uchar>(pt.x,pt.y) > gradThreshold &&
+            Seen.at<uchar>(pt.x,pt.y) == 0);
+    direction = !direction;
+  }
 }
 
 int computeMinLineLength(const Mat& img) {
@@ -165,54 +300,91 @@ void makeLineMap(lineChainList_type& lineChainList, Mat& lineMap) {
 
 }
 
-void runLineDrawing(Mat& img) {
-  std::printf("Running Line Drawing algorithm...\n" );
-  std::printf("Image size is %i by %i\n", static_cast<int>(img.rows),
-              static_cast<int>(img.cols));
-  clock_t t = clock();
-  float total = 0;
-  suppressNoise(img,img);
-  t = clock()-t;
-  std::printf("I applied gaussian filter in %f ms\n",
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
+void runLineDrawing(Mat& img, Mat& contourMap) {
+  std::printf("--- Running Line Drawing (%d x %d pixels) ---\n\n",
+              img.cols, img.rows );
+  double t_total = 0.0;
+  bool time_it = true;
 
-  Mat grad,dirMap;
-  t = clock();
-  computeGradAndDirectionMap(img, grad, dirMap);
-  t = clock()-t;
-  std::printf("I computed gradient and angle map in %f ms\n",
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
-  segList_type edgeSegments;
-  Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  int gradThreshold = 5;
-  int anchorThreshold = 3;
-  int scanInterval = 1;
-  int minLineLength = computeMinLineLength(grad);
-  findEdgeSegments(grad, dirMap, edgeMap, edgeSegments, gradThreshold,
-                  anchorThreshold, scanInterval, minLineLength);
+  t_total += suppressNoise(img,img, time_it);
 
-  Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  makeEdgeSegMap(edgeSegMap, edgeSegments);
+  Mat edgeMap;
+  Mat gradMap[] = {Mat(img.rows, img.cols, CV_16S),
+                   Mat(img.rows, img.cols, CV_16S)};
+  t_total += computeEdgeAndGradMap(img, edgeMap, gradMap, true);
 
-  t = clock();
-  lineChainList_type lineChains;
-  generateLines(edgeSegments, lineChains, minLineLength);
-  t = clock()-t;
-  int numLines = 0;
-  for (const auto& lineChain: lineChains) {
-    numLines += lineChain.size();
+  cv::cvtColor(edgeMap, contourMap, CV_GRAY2BGR);
+  Mat Seen = Mat::zeros(img.size(), CV_8U);
+
+  std::vector< Point> anchors;
+  t_total += extractAnchors_smart(edgeMap, gradMap, anchors);
+
+
+  std::vector<Point> edgeSegment;
+  for (const auto& anchor: anchors) {
+    edgeSegment.clear();
+    extractEdgeSegment(anchor, edgeMap, gradMap, Seen, edgeSegment);
+    if (edgeSegment.size() < 10) {
+      // contourMap.at<Vec3b>(anchor.x,anchor.y)[0] = 255;
+      // contourMap.at<Vec3b>(anchor.x,anchor.y)[1] = 0;
+      // contourMap.at<Vec3b>(anchor.x,anchor.y)[2] = 0;
+      continue;
+    }
+    for (const auto& edgel: edgeSegment) {
+      contourMap.at<Vec3b>(edgel.x,edgel.y)[0] = 0;
+      contourMap.at<Vec3b>(edgel.x,edgel.y)[1] = 0;
+      contourMap.at<Vec3b>(edgel.x,edgel.y)[2] = 255;
+    }
+
+    contourMap.at<Vec3b>(anchor.x,anchor.y)[0] = 255;
+    contourMap.at<Vec3b>(anchor.x,anchor.y)[1] = 0;
+    contourMap.at<Vec3b>(anchor.x,anchor.y)[2] = 0;
+
+    namedWindow("Line Map", WINDOW_NORMAL );
+    resizeWindow("Line Map", 1000, 800);
+    imshow("Line Map", contourMap );
+    waitKey(0);
+    for (const auto& edgel: edgeSegment) {
+      contourMap.at<Vec3b>(edgel.x,edgel.y)[0] = 0;
+      contourMap.at<Vec3b>(edgel.x,edgel.y)[1] = 0;
+      contourMap.at<Vec3b>(edgel.x,edgel.y)[2] = 100;
+    }
   }
-  std::printf("I generated %i line segments in %f ms\n", numLines,
-              ((float)t)/CLOCKS_PER_SEC*1000.0);
 
-  Mat lineMap = Mat(grad);//::zeros(grad.rows,grad.cols, CV_8U);
-  cvtColor(lineMap, lineMap, cv::COLOR_GRAY2BGR);
-  makeLineMap(lineChains, lineMap);
 
-  namedWindow("Line Map", WINDOW_NORMAL );
-  resizeWindow("Line Map", 1000, 800);
-  imshow("Line Map", lineMap );
-  waitKey(0);
+  // segList_type edgeSegments;
+  // Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  // int gradThreshold = 5;
+  // int anchorThreshold = 3;
+  // int scanInterval = 1;
+  // int minLineLength = computeMinLineLength(grad);
+  // findEdgeSegments(grad, dirMap, edgeMap, edgeSegments, gradThreshold,
+  //                 anchorThreshold, scanInterval, minLineLength);
+  //
+  // Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
+  // makeEdgeSegMap(edgeSegMap, edgeSegments);
+  //
+  // t = clock();
+  // lineChainList_type lineChains;
+  // generateLines(edgeSegments, lineChains, minLineLength);
+  // t = clock()-t;
+  // int numLines = 0;
+  // for (const auto& lineChain: lineChains) {
+  //   numLines += lineChain.size();
+  // }
+  // std::printf("I generated %i line segments in %f ms\n", numLines,
+  //             ((float)t)/CLOCKS_PER_SEC*1000.0);
+  // t_total += ((double)t)/CLOCKS_PER_SEC*1000.0;
+  std::printf("\n--- TOTAL: %f ms ---\n", t_total);
+
+  // Mat lineMap = Mat(grad);//::zeros(grad.rows,grad.cols, CV_8U);
+  // cvtColor(lineMap, lineMap, cv::COLOR_GRAY2BGR);
+  // makeLineMap(lineChains, contourMap);
+
+  // namedWindow("Line Map", WINDOW_NORMAL );
+  // resizeWindow("Line Map", 1000, 800);
+  // imshow("Line Map", lineMap );
+  // waitKey(0);
 }
 
 #endif

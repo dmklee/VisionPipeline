@@ -57,6 +57,8 @@ stdio.h
 -
 math.h
 -
+ContourDetection.hpp
+/home/david/Desktop/VisionPipeline/Cpp/ContourDetection.hpp
 
 /home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
 opencv2/opencv.hpp

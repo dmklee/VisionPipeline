@@ -572,44 +572,81 @@ inline bool isValidWalk(const Point& pt, const Mat& edgeMap, const Mat& Seen) {
           (edgeMap.at<uchar>(pt.x, pt.y) >= 15);
 }
 
-// void findCorners2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
-//                   std::vector<Point>& corners) {
-//   double THRESH_dAngle = 0.25;
-//
-//
-//   Point pt(seed);
-//   bool direction = true;
-//   double dAngle = 0.0;
-//   double sum_dAngle;
-//   bool isCorner = false;
-//   bool tmp_bool;
-//   std::array<double, 3>& arr_dAngle = {{0., 0., 0.}};
-//   for (int i=0; i != 2; i++) {
-//     do {
-//       walkEdge(pt, gradMap, edgeMap, direction, dAngle);
-//       arr_dAngle[0] = arr_dAngle[1];
-//       arr_dAngle[1] = arr_dAngle[2];
-//       arr_dAngle[2] = dAngle;
-//       sum_dAngle = std::accumulate(arr_dAngle.begin(), arr_dAngle.end(), 0.0);
-//       tmp_bool = (abs(sum_dAngle) > THRESH_dAngle);
-//       if (isCorner && !tmp_bool) {
-//         // just left corner region so reset
-//       }
-//       isCorner = tmp_bool;
-//       if (isCorner) {
-//
-//       }
-//
-//     } while( isValidWalk(pt, edgeMap, Seen) );
-//
-//
-//
-//
-//     direction = !direction;
-//     pt = Point(seed);
-//     std::fill(std::begin(arr_dAngle), std::end(arr_dAngle), 0.0);
-//   }
-// }
+void findCorners2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
+                  std::vector<Point>& corners, std::vector<Point>& near_corners)
+{
+  double THRESH_dAngle = 0.25;
+
+  Point pt(seed);
+  bool direction = true;
+  double dAngle = 0.0;
+  double theta_old, theta_new;
+  Point vec;
+
+  double mu = 0.0;
+  double S = 0.02;
+  int counter = 0;
+  double integral = 0.0;
+  bool onCorner = false;
+  double DECAY_RATE = 0.8;
+  double delta, delta_, conf95;
+
+  Point tmp_pt;
+  double tmp_dAngle;
+  bool first;
+  for (int i=0; i != 2; i++) {
+    // walk left then walk right
+    first = true;
+    do {
+      Seen.at<uchar>(pt.x, pt.y) = 255;
+      counter++;
+      integral *= DECAY_RATE;
+      walkEdge(pt, gradMap, edgeMap, direction, dAngle);
+
+      delta = dAngle - mu;
+      conf95 = 2.0*pow(S/counter,0.5);
+      if (abs(delta) < conf95) {
+        mu += delta/counter;
+        delta_ = dAngle - mu;
+        S += delta*delta_;
+      } else {
+        integral += 0.1*delta/abs(delta);
+        counter--;
+      }
+      if (!onCorner && abs(integral) > 0.15) {
+        corners.push_back(pt);
+        onCorner = true;
+        // walk back to find where corner started
+        tmp_pt = Point(pt);
+        for (int i=0; i < 20; i++) {
+          walkEdge(tmp_pt, gradMap, edgeMap, !direction, tmp_dAngle);
+          if (tmp_dAngle*integral/abs(integral) > -0.01) {
+            break;
+          }
+          near_corners.push_back(tmp_pt);
+        }
+        continue;
+      }
+      if (onCorner) {
+        near_corners.push_back(pt);
+        if (dAngle*integral/abs(integral) < 0.01) {
+          mu = 0.0;
+          S = 0.02;
+          counter = 0;
+          integral = 0.;
+          onCorner = false;
+        }
+      }
+      first = false;
+    } while( isValidWalk(pt, edgeMap, Seen) );
+
+
+
+
+    direction = !direction;
+    pt = Point(seed);
+  }
+}
 
 void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
                 std::vector<Point>& corners, bool store_data=false)
@@ -630,17 +667,21 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
 
   std::ofstream myfile;
   if (store_data) {
-    myfile.open("../data_04.txt");
+    myfile.open("../data.txt");
   }
 
   int counter = 0;
   if (store_data) {
     // counter, angle, d_angle, accum_d_angle, is_corner
-    myfile << counter << "," << angle_old_left << ",";
-    myfile << 0.0 << "," << 0.0 << "," << false << "\n";
+    // myfile << counter << "," << angle_old_left << ",";
+    // myfile << 0.0 << "," << 0.0 << "," << false << "\n";
+
+    myfile << counter << "," << seed.x << ",";
+    myfile << seed.y <<  "," << 0 <<  "\n";
   }
 
   bool is_corner;
+  Point tmp_pt;
   while (alive_left or alive_right) {
     counter++;
     if (alive_left) {
@@ -664,9 +705,11 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
                 edgeMap.at<uchar>(pt_left.x, pt_left.y) < 15) {
         alive_left = false;
       } else if (store_data) {
-        myfile << -counter << "," << angle_new_left << ",";
-        myfile << d_angle_left << "," << accum_d_angle_left;
-        myfile << "," << is_corner << "\n";
+        // myfile << -counter << "," << angle_new_left << ",";
+        // myfile << d_angle_left << "," << accum_d_angle_left;
+        // myfile << "," << is_corner << "\n";
+        myfile << -counter << "," << pt_left.x << ",";
+        myfile << pt_left.y << "," << d_angle_left << "\n";
       }
       Seen.at<uchar>(pt_left.x, pt_left.y) = 255;
     }
@@ -692,9 +735,11 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
                 edgeMap.at<uchar>(pt_right.x, pt_right.y) < 15) {
         alive_right = false;
       } else if (store_data) {
-        myfile << counter << "," << angle_new_right << ",";
-        myfile << d_angle_right << "," << accum_d_angle_right;
-        myfile << "," << is_corner << "\n";
+        // myfile << counter << "," << angle_new_right << ",";
+        // myfile << d_angle_right << "," << accum_d_angle_right;
+        // myfile << "," << is_corner << "\n";
+        myfile << counter << "," << pt_right.x << ",";
+        myfile << pt_right.y << "," << d_angle_right <<  "\n";
       }
       Seen.at<uchar>(pt_right.x, pt_right.y) = 255;
     }
@@ -969,9 +1014,11 @@ void extractCorners(Mat& img_gray, Mat& contour_map) {
   // seeds.push_back(Point(140,329)); // img07
   // seeds.push_back(Point(118,377)); // img06
   // seeds.push_back(Point(110,347)); // img05
-  seeds.push_back(Point(162,310)); // img04
+  // seeds.push_back(Point(162,310)); // img04
+  seeds.push_back(Point(262,367)); //occlusion4
 
   std::vector<Point> corners;
+  std::vector<Point> near_corners;
   for (auto& seed: seeds) {
     if (!shiftSeed(seed, edgeMap, gradMap)) {
       // std::printf("Failed to shift seed\n");
@@ -991,15 +1038,15 @@ void extractCorners(Mat& img_gray, Mat& contour_map) {
     // contour_map.at<Vec3b>(seed.x,seed.y)[1] = 0;
     // contour_map.at<Vec3b>(seed.x,seed.y)[2] = 0;
   }
-
+  for (const auto& pt: near_corners) {
+    contour_map.at<Vec3b>(pt.x,pt.y)[0] = 23;
+    contour_map.at<Vec3b>(pt.x,pt.y)[1] = 99;
+    contour_map.at<Vec3b>(pt.x,pt.y)[2] = 232;
+  }
   for (const auto& pt: corners) {
-    for (int i = -1; i != 2; i++) {
-      for (int j=-1; j!= 2; j++) {
-        contour_map.at<Vec3b>(pt.x+i,pt.y+j)[0] = 0;
-        contour_map.at<Vec3b>(pt.x+i,pt.y+j)[1] = 0;
-        contour_map.at<Vec3b>(pt.x+i,pt.y+j)[2] = 255;
-      }
-    }
+    contour_map.at<Vec3b>(pt.x,pt.y)[0] = 0;
+    contour_map.at<Vec3b>(pt.x,pt.y)[1] = 0;
+    contour_map.at<Vec3b>(pt.x,pt.y)[2] = 255;
   }
 }
 

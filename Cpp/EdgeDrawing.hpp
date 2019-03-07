@@ -27,7 +27,9 @@ double suppressNoise(const Mat& img, Mat& dst, bool time_it=true) {
   return static_cast<double>(t)/CLOCKS_PER_SEC*1000.0;
 }
 
-void computeGradAndDirectionMap(const Mat& img_gray, Mat& grad, Mat& dirMap) {
+double computeGradAndDirectionMap(const Mat& img_gray, Mat& grad, Mat& dirMap,
+                                bool time_it=true) {
+  clock_t t = clock();
   Mat grad_x, grad_y;
   int ddepth = CV_16S;
   cv::Sobel( img_gray, grad_x, ddepth, 1, 0, 3 );
@@ -36,6 +38,12 @@ void computeGradAndDirectionMap(const Mat& img_gray, Mat& grad, Mat& dirMap) {
   cv::convertScaleAbs( grad_y, grad_y, 0.25);
   cv::add(grad_x, grad_y, grad);
   dirMap = grad_x >= grad_y;
+  t = clock() - t;
+  if (time_it) {
+  std::printf("\tI computed gradient and direction map in %f ms\n",
+              ((float)t)/CLOCKS_PER_SEC*1000.0);
+  }
+  return static_cast<double>(t)/CLOCKS_PER_SEC*1000.0;
 }
 
 inline bool isHorizontal(const Mat& dirMap, const int x, int y) {

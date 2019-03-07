@@ -99,7 +99,7 @@ def inc_follow_contour(X_, Y_, plot_objects):
 # X_ = np.sort(100.*npr.uniform(size=LENGTH))
 # Y_ = SLOPE * X_ + OFFSET + 0.3*(npr.random(size=LENGTH)-0.5)
 
-IMG = "05"
+IMG = "04"
 DATA = np.loadtxt('data_' + IMG + '.txt', delimiter = ',')
 X_ = DATA[:,0]
 Y_ = DATA[:,1]

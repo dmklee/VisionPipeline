@@ -15,7 +15,8 @@ int main(int argc, char** argv )
   int start = 4;
   for (int i=start; i < start+num_files; i++ ) {
 
-    Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
+    // Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
+    Mat image = imread("../Pics/occlusion4.png" , 1);
     Mat image_gray;
     cvtColor( image, image_gray, CV_BGR2GRAY );
 
@@ -26,15 +27,17 @@ int main(int argc, char** argv )
     Mat contourMap;
     // extractContours(image_gray, contourMap);
     extractCorners(image_gray, contourMap);
+    // runLineDrawing(image_gray, contourMap);
 
-    hconcat(image, contourMap, image);
+    // hconcat(image, contourMap, image);
 
     // imwrite( "../Pics/results/contour" + std::to_string(i) +".JPG" , color );
+
     std::string img_name = "img_" + std::to_string(i);
     namedWindow(img_name, WINDOW_NORMAL );
     moveWindow(img_name, 0,30);
-    resizeWindow(img_name, 800,600);
-    imshow(img_name, image );
+    resizeWindow(img_name, 800,1000);
+    imshow(img_name, contourMap );
     waitKey(0);
   }
   return 0;
