@@ -12,13 +12,14 @@ using namespace cv;
 int main(int argc, char** argv )
 {
   int num_files = 1;
-  int start = 10;
+  int start = 7;
   for (int i=start; i < start+num_files; i++ ) {
 
     Mat image = imread("../Pics/blocks/" + std::to_string(i) +".JPG" , 1);
     // Mat image = imread("../Pics/occlusion4.png" , 1);
     Mat image_gray;
     cvtColor( image, image_gray, CV_BGR2GRAY );
+    // addGaussianNoise(image_gray, image_gray, 0.0, 3);
 
     // Mat BW = Mat(image.rows, image.cols, CV_8UC1);
     // Mat RG = Mat(image.rows, image.cols, CV_8UC1);
@@ -26,7 +27,7 @@ int main(int argc, char** argv )
     // convertToBWRGYB(image, BW, RG, YB);
     Mat contourMap;
     // extractContours(image_gray, contourMap);
-    extractCorners(image_gray, contourMap);
+    extractCorners(image_gray, contourMap, i);
     // runLineDrawing(image_gray, contourMap);
 
     // hconcat(image, contourMap, image);
