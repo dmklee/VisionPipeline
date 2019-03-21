@@ -13,13 +13,13 @@ struct Line {
   // _A * x + _B * y + _C = 0
   float _A,_B,_C;
   double _sumX, _sumY, _sumXY, _sumX2;
-  seg_type _data; // may or may not be needed
+  std::vector<cv::Point> _data; // may or may not be needed
 };
 
 typedef std::vector< Line > lineChain_type;
 typedef std::vector< lineChain_type > lineChainList_type;
 typedef seg_type::iterator seg_it_type;
-
+typedef std::array<cv::Point,2> ray_t;
 
 
 inline bool stabilizeAnchor(cv::Point& pt, const Mat& edgeMap,
@@ -108,7 +108,8 @@ inline bool stabilizeAnchor(cv::Point& pt, const Mat& edgeMap,
   return false;
 }
 
-double extractAnchors_smart(Mat& edgeMap, Mat gradMap[],std::vector<Point>& dst,
+double extractAnchors_smart(const Mat& edgeMap, const Mat gradMap[],
+                  std::vector<Point>& dst,
                   bool time_it=true, int size=9,
                   const int gradThreshold=15,
                   const int peakThreshold=4) {
@@ -144,7 +145,7 @@ double extractAnchors_smart(Mat& edgeMap, Mat gradMap[],std::vector<Point>& dst,
   return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
 }
 
-void extractEdgeSegment(const Point& anchor, Mat& edgeMap, Mat gradMap[],
+void extractEdgeSegment(const Point& anchor, const Mat& edgeMap, const Mat gradMap[],
                         Mat& Seen, std::vector<Point>& edgeSegment,
                         const int gradThreshold=15 )
 {
@@ -181,11 +182,12 @@ bool isAligned(Mat& angleMap, pt_type& pix_A, pt_type& pix_B) {
   return  diff <= M_PI/8.0;
 }
 
-void leastSquaresLineFit(const seg_it_type& it, const int minLineLength,
+void leastSquaresLineFit(const std::vector<cv::Point>::iterator& it,
+                          const int minLineLength,
                           Line& L, double& error) {
 
-  int x = (*(it+minLineLength))[0];
-  int y = (*(it+minLineLength))[1];
+  int x = (*(it+minLineLength)).x;
+  int y = (*(it+minLineLength)).y;
   L._sumX += x;
   L._sumY += y;
   L._sumXY += x*y;
@@ -206,24 +208,36 @@ void leastSquaresLineFit(const seg_it_type& it, const int minLineLength,
   // now compute the root mean square error
   error = 0.0;
   for (int i=0; i < minLineLength; ++i) {
-    error += pow(L._A*(*(it+i))[0] + L._B*(*(it+i))[1] +L._C, 2.0);
+    error += pow(L._A*(*(it+i)).x + L._B*(*(it+i)).y +L._C, 2.0);
   }
   error = sqrt(error/minLineLength);
 
-  x = (*it)[0];
-  y = (*it)[1];
+  x = (*it).x;
+  y = (*it).y;
   L._sumX  -= x;
   L._sumY  -= y;
   L._sumXY -= x*y;
   L._sumX2 -= x*x;
 }
 
-inline double computePointDistance2Line(const Line& L, const seg_it_type& it) {
-  return abs(L._A * (*it)[0] + L._B * (*it)[1] + L._C)/
+inline double computePointDistance2Line(const Line& L,
+                              const std::vector<cv::Point>::iterator& it) {
+  return abs(L._A * (*it).x + L._B * (*it).y + L._C)/
           std::sqrt(pow(L._A,2)+pow(L._B,2));
 }
 
-void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
+void computeNearestPoint(const Line& L, const cv::Point& p0,
+                               cv::Point nearest) {
+  Point2d n(L._A, L._B);
+  Point2d p1(-L._C/L._A, 0);
+  Point2d u(p1.x-p0.x, p1.y-p0.y);
+  double u_1 = (u.x*n.x + u.y*n.y)/pow(pow(n.x,2) + pow(n.y,2), 0.5);
+  nearest.x = round(p0.x - u_1*n.x);
+  nearest.y = round(p0.y - u_1*n.y);
+}
+
+void lineFit(std::vector<cv::Point>::iterator& it, int numPixels,
+             lineChain_type& lineChain,
              const int minLineLength, const float maxFitError) {
   // return true unless out of pixels
   double error = 10*maxFitError;
@@ -231,8 +245,8 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
   L._sumX = L._sumY = L._sumXY = L._sumX2 = 0.0;
   int x,y;
   for (int i=0; i<(minLineLength-1); i++) {
-    x = (*(it+i))[0];
-    y = (*(it+i))[1];
+    x = (*(it+i)).x;
+    y = (*(it+i)).y;
     L._sumX += x;
     L._sumY += y;
     L._sumXY += x*y;
@@ -249,7 +263,7 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
   if (error > maxFitError) return; // out of pixels
 
   for (int i=0; i != minLineLength; ++i) {
-    pt_type tmp= {(*(it+i))[0],(*(it+i))[1]};
+    cv::Point tmp( *(it+i) );
     L._data.push_back(tmp);
   }
 
@@ -259,7 +273,7 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
   while (lineLength < numPixels) {
     d = computePointDistance2Line(L, it);
     if (d > maxFitError) break;
-    pt_type tmp= {(*(it))[0],(*(it))[1]};
+    cv::Point tmp( *it );
     L._data.push_back(tmp);
     lineLength++;
     it++;
@@ -267,36 +281,61 @@ void lineFit(seg_it_type& it, int numPixels, lineChain_type& lineChain,
   lineChain.push_back(L);
 }
 
-void generateLines(segList_type& edgeSegments, lineChainList_type& dst,
+void generateLineChain(std::vector<Point>& edgeSegment, lineChain_type& lineChain,
                     const int minLineLength=12, const float maxFitError=2) {
-  lineChain_type lineChain;
-  // seg_it_type it;
-  // int segLength;
-  for (auto& edgeSegment: edgeSegments) {
-    seg_it_type it = edgeSegment.begin();
-    int segLength = edgeSegment.end()-it;
-    while (segLength > minLineLength) {
-      lineFit(it, segLength, lineChain, minLineLength, maxFitError);
-      segLength = edgeSegment.end()-it;
-    }
-    if (!lineChain.empty()) {
-      dst.push_back(lineChain);
-      lineChain.clear();
-    }
+  std::vector<cv::Point>::iterator it = edgeSegment.begin();
+  int segLength = edgeSegment.end()-it;
+  while (segLength > minLineLength) {
+    lineFit(it, segLength, lineChain, minLineLength, maxFitError);
+    segLength = edgeSegment.end()-it;
   }
 }
 
-void makeLineMap(lineChainList_type& lineChainList, Mat& lineMap) {
-  Scalar color(0,0,255);
-  int thickness = 1;
-  int x1, y1, x2, y2;
-  for (const auto& lineChain: lineChainList) {
-    for (const auto& L: lineChain) {
-      x1 = L._data.front()[0]; y1 = L._data.front()[1];
-      x2 = L._data.rbegin()[2][0]; y2 = L._data.rbegin()[2][1];
-      cv::line ( lineMap, Point(y1, x1), Point(y2, x2), color, thickness);
+double findLines(const std::vector<cv::Point>& anchors, const Mat& edgeMap,
+              const Mat gradMap[], Mat& Seen,
+              std::vector<ray_t>& rayChain, bool time_it) {
+  // PARAMS
+  double MSE_TOL = 1.5;
+  double BEND_TOL = 22.5*3.14159265 / 180.;
+
+  clock_t t = clock();
+  int minLineLength = computeMinLineLength(edgeMap);
+  std::vector<Point> edgeSegment;
+  ray_t ray;
+  std::vector<Line> lineChain;
+  double old_tangent, new_tangent;
+  for (const auto& anchor: anchors) {
+    edgeSegment.clear();
+    extractEdgeSegment(anchor, edgeMap, gradMap, Seen, edgeSegment);
+    // if (edgeSegment.size() <= minLineLength) {
+    //   continue;
+    // }
+    generateLineChain(edgeSegment, lineChain, minLineLength, MSE_TOL);
+    for (int i=0; i != lineChain.size(); i++) {
+      if (i == 0) {
+        ray[0] = Point(lineChain[i]._data[3]);
+        ray[1] = Point(lineChain[i]._data[lineChain[i]._data.size()-3]);
+        old_tangent = atan2(lineChain[i]._A, lineChain[i]._B);
+        continue;
+      }
+      new_tangent = atan2(lineChain[i]._A, lineChain[i]._B);
+      if (abs(getAngleDifference(old_tangent, new_tangent)) > BEND_TOL) {
+        rayChain.push_back(ray);
+        ray[0] = Point(lineChain[i]._data[3]);
+      }
+      ray[1] = Point(lineChain[i]._data[lineChain[i]._data.size()-3]);
+      old_tangent = new_tangent;
     }
+    rayChain.push_back(ray);
+
   }
+  t = clock() - t;
+  if (time_it) {
+    std::printf("\tI found %d line segments in %f ms\n", \
+                static_cast<int>(lineChain.size()),
+                ((float)t)/CLOCKS_PER_SEC*1000.0);
+  }
+  return static_cast<double> (t) / CLOCKS_PER_SEC*1000.0;
 
 }
 
@@ -311,7 +350,7 @@ void runLineDrawing(Mat& img, Mat& contourMap) {
   Mat edgeMap;
   Mat gradMap[] = {Mat(img.rows, img.cols, CV_16S),
                    Mat(img.rows, img.cols, CV_16S)};
-  t_total += computeEdgeAndGradMap(img, edgeMap, gradMap, true);
+  t_total += computeEdgeAndGradMap(img, edgeMap, gradMap, time_it);
 
   cv::cvtColor(edgeMap, contourMap, CV_GRAY2BGR);
   Mat Seen = Mat::zeros(img.size(), CV_8U);
@@ -319,72 +358,23 @@ void runLineDrawing(Mat& img, Mat& contourMap) {
   std::vector< Point> anchors;
   t_total += extractAnchors_smart(edgeMap, gradMap, anchors);
 
+  // for (const auto& anchor: anchors) {
+  //   contourMap.at<Vec3b>(anchor.x, anchor.y)[0] = 255;
+  //   contourMap.at<Vec3b>(anchor.x, anchor.y)[1] = 0;
+  //   contourMap.at<Vec3b>(anchor.x, anchor.y)[2] = 0;
+  // }
 
-  std::vector<Point> edgeSegment;
-  for (const auto& anchor: anchors) {
-    edgeSegment.clear();
-    extractEdgeSegment(anchor, edgeMap, gradMap, Seen, edgeSegment);
-    if (edgeSegment.size() < 10) {
-      // contourMap.at<Vec3b>(anchor.x,anchor.y)[0] = 255;
-      // contourMap.at<Vec3b>(anchor.x,anchor.y)[1] = 0;
-      // contourMap.at<Vec3b>(anchor.x,anchor.y)[2] = 0;
-      continue;
-    }
-    for (const auto& edgel: edgeSegment) {
-      contourMap.at<Vec3b>(edgel.x,edgel.y)[0] = 0;
-      contourMap.at<Vec3b>(edgel.x,edgel.y)[1] = 0;
-      contourMap.at<Vec3b>(edgel.x,edgel.y)[2] = 255;
-    }
-
-    contourMap.at<Vec3b>(anchor.x,anchor.y)[0] = 255;
-    contourMap.at<Vec3b>(anchor.x,anchor.y)[1] = 0;
-    contourMap.at<Vec3b>(anchor.x,anchor.y)[2] = 0;
-
-    namedWindow("Line Map", WINDOW_NORMAL );
-    resizeWindow("Line Map", 1000, 800);
-    imshow("Line Map", contourMap );
-    waitKey(0);
-    for (const auto& edgel: edgeSegment) {
-      contourMap.at<Vec3b>(edgel.x,edgel.y)[0] = 0;
-      contourMap.at<Vec3b>(edgel.x,edgel.y)[1] = 0;
-      contourMap.at<Vec3b>(edgel.x,edgel.y)[2] = 100;
-    }
+  std::vector<ray_t> rayChain;
+  t_total += findLines(anchors, edgeMap, gradMap, Seen, rayChain, time_it);
+  for (const auto& ray: rayChain) {
+    Point pt1(ray[0].y, ray[0].x);
+    Point pt2(ray[1].y, ray[1].x);
+    cv::line(contourMap, pt1, pt2,
+            cv::Scalar(0,0,255), 1);
   }
 
-
-  // segList_type edgeSegments;
-  // Mat edgeMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  // int gradThreshold = 5;
-  // int anchorThreshold = 3;
-  // int scanInterval = 1;
-  // int minLineLength = computeMinLineLength(grad);
-  // findEdgeSegments(grad, dirMap, edgeMap, edgeSegments, gradThreshold,
-  //                 anchorThreshold, scanInterval, minLineLength);
-  //
-  // Mat edgeSegMap = Mat::zeros(grad.rows,grad.cols,CV_8U);
-  // makeEdgeSegMap(edgeSegMap, edgeSegments);
-  //
-  // t = clock();
-  // lineChainList_type lineChains;
-  // generateLines(edgeSegments, lineChains, minLineLength);
-  // t = clock()-t;
-  // int numLines = 0;
-  // for (const auto& lineChain: lineChains) {
-  //   numLines += lineChain.size();
-  // }
-  // std::printf("I generated %i line segments in %f ms\n", numLines,
-  //             ((float)t)/CLOCKS_PER_SEC*1000.0);
-  // t_total += ((double)t)/CLOCKS_PER_SEC*1000.0;
   std::printf("\n--- TOTAL: %f ms ---\n", t_total);
 
-  // Mat lineMap = Mat(grad);//::zeros(grad.rows,grad.cols, CV_8U);
-  // cvtColor(lineMap, lineMap, cv::COLOR_GRAY2BGR);
-  // makeLineMap(lineChains, contourMap);
-
-  // namedWindow("Line Map", WINDOW_NORMAL );
-  // resizeWindow("Line Map", 1000, 800);
-  // imshow("Line Map", lineMap );
-  // waitKey(0);
 }
 
 #endif

@@ -27,8 +27,8 @@ int main(int argc, char** argv )
     // convertToBWRGYB(image, BW, RG, YB);
     Mat contourMap;
     // extractContours(image_gray, contourMap);
-    extractCorners(image_gray, contourMap, i);
-    // runLineDrawing(image_gray, contourMap);
+    // extractCorners(image_gray, contourMap, i);
+    runLineDrawing(image_gray, contourMap);
 
     // hconcat(image, contourMap, image);
 

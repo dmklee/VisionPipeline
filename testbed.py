@@ -9,8 +9,7 @@ DATA = np.loadtxt('data.txt', delimiter = ',')[:-5]
 # DATA = DATA[DATA[:, 0].argsort()]
 
 # parameters
-FRONT_LENGTH = 4
-FRONT_ALPHA = 1./(FRONT_LENGTH-1)
+FRONT_LENGTH = 5
 ERROR_TOL = 0.15
 ERROR_ALPHA = 1./(FRONT_LENGTH)
 
@@ -19,6 +18,7 @@ MU_LAG = []
 ERROR = []
 ERROR_SMOOTHED = []
 CORNERS = []
+END_CORNERS = []
 
 total_i = 0
 i = 0
@@ -33,22 +33,23 @@ onCorner = False
 for del_grad_id in DATA[:,0]:
 	total_i += 1
 	i += 1
-	x = x+del_grad_id if i != 0 else 0
-	delta_front = (x-mu_front)
-	mu_front += delta_front*FRONT_ALPHA
-	MU_FRONT.append(mu_front)
 
+	x = x+del_grad_id if i != 0 else 0
 	x_lag = archive[0]
 	#update archive
 	for j in range(FRONT_LENGTH-1):
 		archive[j] = archive[j+1]
 	archive[FRONT_LENGTH-1] = x
 
+	delta_front = x - mu_front
+	mu_front = np.mean(archive)
+	MU_FRONT.append(mu_front)
+
 	if i > FRONT_LENGTH:
 		delta_lag = (x_lag-mu_lag)
 		mu_lag += delta_lag/(i+1-FRONT_LENGTH)
 	else:
-		mu_lag = mu_front
+		mu_lag = 0*mu_front
 	MU_LAG.append(mu_lag)
 
 	if i > 2*FRONT_LENGTH:
@@ -58,8 +59,8 @@ for del_grad_id in DATA[:,0]:
 	ERROR.append(error)
 	ERROR_SMOOTHED.append(mu_error)
 	if onCorner:
-		CORNERS.append(total_i-FRONT_LENGTH)
 		if np.sign(delta_error) != corner_side:
+			
 			i = 0
 			x = 0
 			error = 0.0
@@ -68,6 +69,7 @@ for del_grad_id in DATA[:,0]:
 			mu_lag = 0.0
 			archive[:] = 0
 			onCorner = False
+			END_CORNERS.append(total_i)
 	elif abs(mu_error) > ERROR_TOL:
 		CORNERS.append(total_i-FRONT_LENGTH)
 		corner_side = np.sign(mu_error)
@@ -98,6 +100,7 @@ ax2.plot(ERROR_SMOOTHED)
 plt.figure()
 plt.plot(DATA[:,2], DATA[:,3])
 plt.plot(DATA[CORNERS,2], DATA[CORNERS,3], 'rs', markersize=3)
+plt.plot(DATA[END_CORNERS,2], DATA[END_CORNERS,3], 'r^', markersize=3)
 plt.plot(DATA[0,2], DATA[0,3], 'go', markersize=5)
 plt.axis('equal')
 plt.show()
