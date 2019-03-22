@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt 
 plt.style.use('classic')
 
+#run extractCorners to generate the data
+
 def gaussian(x, mu, var):
 	return np.exp(-np.power(x-mu, 2.)/(2.*var))
 
