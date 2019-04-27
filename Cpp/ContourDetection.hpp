@@ -11,7 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <numeric>
-// #include <Eigen/Dense>
+
 
 #define PI 3.14159265
 
@@ -576,11 +576,11 @@ inline bool isValidWalk(const Point& pt, const Mat& edgeMap, const Mat& Seen) {
 }
 
 void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
-                std::vector<Point>& corners, bool store_data=false)
+                std::vector<Point>& corners, bool store_data=false, int img_id=-1)
 {
   std::ofstream myfile;
   if (store_data) {
-    myfile.open("../data.txt");
+    myfile.open("../data_" + std::to_string(img_id) + ".txt");
   }
 
   Point pt;
@@ -592,6 +592,7 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
     counter = 0;
     last_grad_id = (4*i + getGradID(gradMap, pt))%8;
     if (store_data) {
+      // theta, dtheta, x, y
       myfile << 0 << "," << 0 << ",";
       myfile << pt.y << "," << -pt.x << "\n";
     }
@@ -607,6 +608,29 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
       }
     } while (Seen.at<uchar>(pt.x, pt.y) == 0 &&
             edgeMap.at<uchar>(pt.x, pt.y) >= 15);
+  }
+}
+
+void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
+                  std::vector<Point>& corners, std::vector<std::pair<double,double> >& angles) {
+
+  Point pt;
+  bool alive;
+  int last_grad_id, del_grad_id, counter, x_cumsum;
+  for (int i=0; i != 1; i++) {
+   pt = Point(seed);
+   x_cumsum = 0;
+   counter = 0;
+   last_grad_id = (4*i + getGradID(gradMap, pt))%8;
+   do {
+     corners.push_back(pt);
+     counter++;
+     Seen.at<uchar>(pt.x,pt.y) = 255;
+     del_grad_id = walkEdge(pt, edgeMap, gradMap, i, last_grad_id);
+     x_cumsum += del_grad_id;
+     angles.push_back(std::make_pair(counter-1, x_cumsum));
+   } while (Seen.at<uchar>(pt.x, pt.y) == 0 &&
+           edgeMap.at<uchar>(pt.x, pt.y) >= 15);
   }
 }
 
@@ -871,35 +895,20 @@ void extractCorners(Mat& img_gray, Mat& contour_map, int img_id) {
 
   std::vector<cv::Point> seeds;
   extractSeeds(edgeMap, gradMap, seeds);
+
+  cv::Point preset_seeds[] = {Point(87,189), Point(102,79), Point(164,150),
+                              Point(183,108  ), Point(162,310), Point(110,347),
+                              Point(118,377), Point(140,329), Point(104,272),
+                              Point(171,295), Point(165,309),
+                              Point(234,115), Point(138,139),
+                              Point(197,102), Point(186,43), Point(233,105),
+                              Point(155,88), Point(165,120), Point(153,36),
+                              Point(52,143), Point(173,118), Point(106,73),
+                              Point(243,178)};
   seeds.clear();
-  switch (img_id) {
-    case 10:
-      seeds.push_back(Point(165,309)); // img10
-      break;
-    case 9:
-      seeds.push_back(Point(171,295)); // img09
-      break;
-    case 8:
-      seeds.push_back(Point(104,272)); // img08
-      break;
-    case 7:
-      seeds.push_back(Point(140,329)); // img07
-      break;
-    case 6:
-      seeds.push_back(Point(118,377)); // img06
-      break;
-    case 5:
-      seeds.push_back(Point(110,347)); // img05
-      break;
-    case 4:
-      seeds.push_back(Point(162,310)); // img04
-      break;
-    default:
-      seeds.push_back(Point(262,367)); //occlusion4
-      break;
-
+  if (img_id >= 0) {
+    seeds.push_back(preset_seeds[img_id]);
   }
-
 
   std::vector<Point> corners;
   for (auto& seed: seeds) {
@@ -916,7 +925,7 @@ void extractCorners(Mat& img_gray, Mat& contour_map, int img_id) {
       continue;
     }
 
-    findCorners(seed, edgeMap, gradMap, Seen, corners, true);
+    findCorners(seed, edgeMap, gradMap, Seen, corners, true, img_id);
     contour_map.at<Vec3b>(seed.x,seed.y)[0] = 255;
     contour_map.at<Vec3b>(seed.x,seed.y)[1] = 0;
     contour_map.at<Vec3b>(seed.x,seed.y)[2] = 0;
@@ -926,6 +935,28 @@ void extractCorners(Mat& img_gray, Mat& contour_map, int img_id) {
     contour_map.at<Vec3b>(pt.x,pt.y)[1] = 0;
     contour_map.at<Vec3b>(pt.x,pt.y)[2] = 200;
   }
+}
+
+void extractCorners(Mat& img_gray, cv::Point& seed, std::vector<cv::Point>& edgels,
+                      std::vector<std::pair<double, double> >& angles)
+{
+  Mat Seen = Mat::zeros(img_gray.size(), CV_8U);
+  // suppressNoise(img_gray, img_gray);
+  Mat edgeMap;
+  Mat gradMap[] = {Mat(img_gray.rows, img_gray.cols, CV_16S),
+                   Mat(img_gray.rows, img_gray.cols, CV_16S)};
+  computeEdgeAndGradMap(img_gray, edgeMap, gradMap);
+
+  if (!shiftSeed(seed, edgeMap, gradMap)) {
+    std::printf("Failed to shift seed\n");
+    return;
+  }
+  if (!isStableSeed(seed, edgeMap, gradMap, 2)) {
+    std::printf("Unstable seed\n");
+    return;
+  }
+  findCorners(seed, edgeMap, gradMap, Seen, edgels, angles);
+
 }
 
 
