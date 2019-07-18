@@ -560,6 +560,16 @@ void expandBranch2(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
   if (store_data)  myfile.close();
 } // end function
 
+void IncrementalFit(std::vector<std::pair<double, double> >& data,
+                    std::vector<std::pair<double, double> >& avg) {
+    avg.clear();
+    double mean = 0;
+    double delta;
+    for (int i=0; i != data.size()-1; i++) {
+      delta = std::get<1>(data[i]);
+    }
+}
+
 int walkEdge(Point& pt, const Mat& edgeMap, const Mat gradMap[],
           bool direction, int& last_grad_id) {
   int grad_id = (4*direction + getGradID(gradMap, pt))%8;
@@ -613,12 +623,14 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
 
 void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
                   std::vector<Point>& corners, std::vector<std::pair<double,double> >& angles) {
-
   Point pt;
   bool alive;
   int last_grad_id, del_grad_id, counter, x_cumsum;
+  double old_angle, new_angle, cum_angle;
   for (int i=0; i != 1; i++) {
    pt = Point(seed);
+   old_angle = getContourAngle(gradMap, pt);
+   cum_angle = 0.0;
    x_cumsum = 0;
    counter = 0;
    last_grad_id = (4*i + getGradID(gradMap, pt))%8;
@@ -627,8 +639,11 @@ void findCorners(const Point& seed, Mat& edgeMap, Mat gradMap[], Mat& Seen,
      counter++;
      Seen.at<uchar>(pt.x,pt.y) = 255;
      del_grad_id = walkEdge(pt, edgeMap, gradMap, i, last_grad_id);
-     x_cumsum += del_grad_id;
-     angles.push_back(std::make_pair(counter-1, x_cumsum));
+     new_angle = getContourAngle(gradMap, pt);
+     cum_angle += getAngleDifference(old_angle, new_angle);
+     old_angle = new_angle;
+     x_cumsum -= del_grad_id;
+     angles.push_back(std::make_pair(counter-1, cum_angle));
    } while (Seen.at<uchar>(pt.x, pt.y) == 0 &&
            edgeMap.at<uchar>(pt.x, pt.y) >= 15);
   }

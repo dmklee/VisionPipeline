@@ -75,6 +75,8 @@ opencv2/imgcodecs.hpp
 -
 ctime
 -
+algorithm
+-
 Transformations.hpp
 /home/david/Desktop/VisionPipeline/Cpp/Transformations.hpp
 EdgeDrawing.hpp

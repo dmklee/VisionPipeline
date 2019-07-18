@@ -111,44 +111,44 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named VisionPipeline
+# Target rules for targets named Demo
 
 # Build rule for target.
-VisionPipeline: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 VisionPipeline
-.PHONY : VisionPipeline
+Demo: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 Demo
+.PHONY : Demo
 
 # fast build rule for target.
-VisionPipeline/fast:
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/build
-.PHONY : VisionPipeline/fast
+Demo/fast:
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/build
+.PHONY : Demo/fast
 
-VisionPipeline.o: VisionPipeline.cpp.o
+Demo.o: Demo.cpp.o
 
-.PHONY : VisionPipeline.o
+.PHONY : Demo.o
 
 # target to build an object file
-VisionPipeline.cpp.o:
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/VisionPipeline.cpp.o
-.PHONY : VisionPipeline.cpp.o
+Demo.cpp.o:
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/Demo.cpp.o
+.PHONY : Demo.cpp.o
 
-VisionPipeline.i: VisionPipeline.cpp.i
+Demo.i: Demo.cpp.i
 
-.PHONY : VisionPipeline.i
+.PHONY : Demo.i
 
 # target to preprocess a source file
-VisionPipeline.cpp.i:
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/VisionPipeline.cpp.i
-.PHONY : VisionPipeline.cpp.i
+Demo.cpp.i:
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/Demo.cpp.i
+.PHONY : Demo.cpp.i
 
-VisionPipeline.s: VisionPipeline.cpp.s
+Demo.s: Demo.cpp.s
 
-.PHONY : VisionPipeline.s
+.PHONY : Demo.s
 
 # target to generate assembly for a file
-VisionPipeline.cpp.s:
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/VisionPipeline.cpp.s
-.PHONY : VisionPipeline.cpp.s
+Demo.cpp.s:
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/Demo.cpp.s
+.PHONY : Demo.cpp.s
 
 # Help Target
 help:
@@ -157,11 +157,11 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... rebuild_cache"
-	@echo "... VisionPipeline"
+	@echo "... Demo"
 	@echo "... edit_cache"
-	@echo "... VisionPipeline.o"
-	@echo "... VisionPipeline.i"
-	@echo "... VisionPipeline.s"
+	@echo "... Demo.o"
+	@echo "... Demo.i"
+	@echo "... Demo.s"
 .PHONY : help
 
 

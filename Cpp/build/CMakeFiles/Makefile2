@@ -60,39 +60,39 @@ CMAKE_SOURCE_DIR = /home/david/Desktop/VisionPipeline/Cpp
 CMAKE_BINARY_DIR = /home/david/Desktop/VisionPipeline/Cpp/build
 
 #=============================================================================
-# Target rules for target CMakeFiles/VisionPipeline.dir
+# Target rules for target CMakeFiles/Demo.dir
 
 # All Build rule for target.
-CMakeFiles/VisionPipeline.dir/all:
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/depend
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/david/Desktop/VisionPipeline/Cpp/build/CMakeFiles --progress-num=1,2 "Built target VisionPipeline"
-.PHONY : CMakeFiles/VisionPipeline.dir/all
+CMakeFiles/Demo.dir/all:
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/depend
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/david/Desktop/VisionPipeline/Cpp/build/CMakeFiles --progress-num=1,2 "Built target Demo"
+.PHONY : CMakeFiles/Demo.dir/all
 
 # Include target in all.
-all: CMakeFiles/VisionPipeline.dir/all
+all: CMakeFiles/Demo.dir/all
 
 .PHONY : all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/VisionPipeline.dir/rule: cmake_check_build_system
+CMakeFiles/Demo.dir/rule: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/david/Desktop/VisionPipeline/Cpp/build/CMakeFiles 2
-	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/VisionPipeline.dir/all
+	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/Demo.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/david/Desktop/VisionPipeline/Cpp/build/CMakeFiles 0
-.PHONY : CMakeFiles/VisionPipeline.dir/rule
+.PHONY : CMakeFiles/Demo.dir/rule
 
 # Convenience name for target.
-VisionPipeline: CMakeFiles/VisionPipeline.dir/rule
+Demo: CMakeFiles/Demo.dir/rule
 
-.PHONY : VisionPipeline
-
-# clean rule for target.
-CMakeFiles/VisionPipeline.dir/clean:
-	$(MAKE) -f CMakeFiles/VisionPipeline.dir/build.make CMakeFiles/VisionPipeline.dir/clean
-.PHONY : CMakeFiles/VisionPipeline.dir/clean
+.PHONY : Demo
 
 # clean rule for target.
-clean: CMakeFiles/VisionPipeline.dir/clean
+CMakeFiles/Demo.dir/clean:
+	$(MAKE) -f CMakeFiles/Demo.dir/build.make CMakeFiles/Demo.dir/clean
+.PHONY : CMakeFiles/Demo.dir/clean
+
+# clean rule for target.
+clean: CMakeFiles/Demo.dir/clean
 
 .PHONY : clean
 
